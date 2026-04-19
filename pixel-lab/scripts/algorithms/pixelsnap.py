@@ -20,44 +20,60 @@ Usage via process.py :
 
 import numpy as np
 from PIL import Image
-from math import gcd
-from functools import reduce
+from collections import Counter
 
 
 # ─── Détection automatique de la taille de bloc ───────────────────────────────
 
 def detect_block_size(arr: np.ndarray) -> int:
     """
-    Estime la taille N des pixels agrandis via GCD des runs de pixels identiques.
-    Analyse plusieurs lignes et colonnes pour robustesse.
+    Détecte la taille N des blocs pixel via autocorrélation du gradient.
+
+    Robuste aux pixels interpolés des images AI : même si les pixels ne sont
+    pas identiques en bord de bloc, le gradient présente une périodicité N
+    révélée par l'autocorrélation FFT.
     """
     h, w = arr.shape[:2]
-    all_runs = []
 
-    # Échantillonne plusieurs lignes et colonnes
-    for frac in (0.25, 0.5, 0.75):
-        for axis in (0, 1):
-            if axis == 0:
-                line = arr[int(h * frac)]       # ligne horizontale
-            else:
-                line = arr[:, int(w * frac)]    # colonne verticale
+    # Luminance perceptuelle
+    gray = (0.299 * arr[:, :, 0].astype(np.float32)
+            + 0.587 * arr[:, :, 1]
+            + 0.114 * arr[:, :, 2])
 
-            runs = []
-            count = 1
-            for i in range(1, len(line)):
-                if np.array_equal(line[i], line[i - 1]):
-                    count += 1
-                else:
-                    runs.append(count)
-                    count = 1
-            runs.append(count)
-            all_runs.extend(r for r in runs if r > 0)
+    # Profils 1D : énergie de gradient moyennée sur l'axe perpendiculaire
+    col_profile = np.abs(np.diff(gray, axis=1)).mean(axis=0)   # (w-1,)
+    row_profile = np.abs(np.diff(gray, axis=0)).mean(axis=1)   # (h-1,)
 
-    if not all_runs:
+    def period_from_autocorr(signal: np.ndarray, max_period: int = 64) -> int:
+        n = len(signal)
+        if n < 6:
+            return 0
+        sig = signal - signal.mean()
+        # Autocorrélation circulaire via FFT (zero-padding pour éviter l'aliasing)
+        fft_vals = np.fft.rfft(sig, n=2 * n)
+        ac = np.fft.irfft(fft_vals * np.conj(fft_vals))[:n]
+        if ac[0] < 1e-8:
+            return 0
+        ac = ac / ac[0]
+        # Premier pic local dans [2, max_period] dépassant le seuil 0.10
+        limit = min(max_period + 1, n // 2)
+        for lag in range(2, limit):
+            if (ac[lag] > ac[lag - 1]
+                    and ac[lag] > ac[min(lag + 1, n - 1)]
+                    and ac[lag] > 0.10):
+                return lag
+        return 0
+
+    p_col = period_from_autocorr(col_profile)
+    p_row = period_from_autocorr(row_profile)
+
+    periods = [p for p in [p_col, p_row] if p >= 2]
+    if not periods:
         return 1
 
-    g = reduce(gcd, all_runs)
-    return max(1, min(g, 16))   # cap à 16px de bloc
+    # Mode des deux estimations (ou unique valeur disponible)
+    period = Counter(periods).most_common(1)[0][0]
+    return max(2, min(period, 64))
 
 
 # ─── Algorithme principal ────────────────────────────────────────────────────
@@ -117,4 +133,10 @@ METHODS = {
     "median": lambda img, **kw: snap(img, block=int(kw.get("block", 0)), method="median"),
     "mean":   lambda img, **kw: snap(img, block=int(kw.get("block", 0)), method="mean"),
     "mode":   lambda img, **kw: snap(img, block=int(kw.get("block", 0)), method="mode"),
+}
+
+PARAMS = {
+    "median": [{"name": "block", "type": "int", "default": 0, "min": 0, "max": 64}],
+    "mean":   [{"name": "block", "type": "int", "default": 0, "min": 0, "max": 64}],
+    "mode":   [{"name": "block", "type": "int", "default": 0, "min": 0, "max": 64}],
 }

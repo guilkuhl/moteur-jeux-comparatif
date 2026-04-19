@@ -79,6 +79,8 @@
     will-change: transform;
     line-height: 0;
     transition: transform 0.12s ease-out;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: pixelated;
   }
   .compare-body .img-base {
     display: block; width: 100%; image-rendering: pixelated;
@@ -153,10 +155,14 @@
   .card-img-wrap {
     position: relative; overflow: hidden;
     aspect-ratio: 1; background: #0a0a0f; cursor: crosshair;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: pixelated;
   }
   .card-img-wrap img {
     width: 100%; height: 100%; object-fit: contain;
-    image-rendering: pixelated; transform-origin: center center;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: pixelated;
+    transform-origin: center center;
     transition: transform .05s; pointer-events: none; user-select: none;
   }
   .zoom-hint {
@@ -190,11 +196,107 @@
   .iter-info .iter-num { display: none; }
 
   .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: .65rem; font-weight: 700; margin-right: 3px; }
-  .tag-sharpen  { background: #2d3a5a; color: #8ab4f8; }
-  .tag-scale2x  { background: #2d4a3a; color: #8af8b4; }
-  .tag-denoise  { background: #4a2d3a; color: #f8b48a; }
-  .tag-pipeline { background: #3a2d4a; color: #d48af8; }
-  .tag-source   { background: #3a3a2d; color: #f8e28a; }
+  .tag-sharpen   { background: #2d3a5a; color: #8ab4f8; }
+  .tag-scale2x   { background: #2d4a3a; color: #8af8b4; }
+  .tag-denoise   { background: #4a2d3a; color: #f8b48a; }
+  .tag-pipeline  { background: #3a2d4a; color: #d48af8; }
+  .tag-source    { background: #3a3a2d; color: #f8e28a; }
+  .tag-pixelsnap { background: #4a3a2d; color: #f8c88a; }
+
+  /* ── SIDEBAR SELECT ── */
+  .img-item input.img-select { flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
+  .sidebar-footer {
+    padding: 8px 14px; border-top: 1px solid var(--border);
+    font-size: .72rem; color: var(--muted); flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar-footer .sel-count { color: var(--accent); font-weight: 700; }
+
+  /* ── CONVERT PANEL ── */
+  .convert-panel {
+    width: 300px; min-width: 260px; flex-shrink: 0;
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .convert-panel.degraded { opacity: .7; }
+  .cp-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .cp-header .cp-title { font-weight: 700; color: var(--text); }
+  .cp-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .cp-offline-msg {
+    background: #2a1a1a; border: 1px solid #6b3030; border-radius: 6px;
+    padding: 10px 12px; font-size: .75rem; color: #f8a0a0; line-height: 1.6;
+  }
+  .cp-offline-msg code { background: var(--surface2); padding: 1px 5px; border-radius: 3px; font-size: .72rem; }
+
+  /* ── STEP BUILDER ── */
+  .step-list { display: flex; flex-direction: column; gap: 6px; }
+  .step-row {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .step-row-top { display: flex; align-items: center; gap: 6px; }
+  .step-row select {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 3px 6px; font-size: .78rem;
+  }
+  .step-row select:focus { outline: none; border-color: var(--accent); }
+  .step-ctrl { display: flex; gap: 3px; }
+  .step-btn {
+    width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); font-size: .75rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .step-params { display: flex; flex-wrap: wrap; gap: 6px; }
+  .param-field { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 80px; }
+  .param-field label { font-size: .62rem; color: var(--muted); }
+  .param-field input {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 3px 6px; font-size: .78rem; width: 100%;
+  }
+  .param-field input:focus { outline: none; border-color: var(--accent); }
+
+  .cp-add-btn {
+    background: var(--surface2); border: 1px dashed var(--border); color: var(--muted);
+    border-radius: 6px; padding: 6px; font-size: .78rem; cursor: pointer; text-align: center;
+    transition: border-color .12s, color .12s;
+  }
+  .cp-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .preset-select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 5px 8px; font-size: .78rem; cursor: pointer;
+  }
+  .preset-select:focus { outline: none; border-color: var(--accent); }
+
+  .cp-launch-btn {
+    background: var(--accent); border: none; color: #fff; border-radius: 6px;
+    padding: 8px 14px; font-size: .82rem; font-weight: 700; cursor: pointer;
+    transition: opacity .12s;
+  }
+  .cp-launch-btn:hover:not(:disabled) { opacity: .85; }
+  .cp-launch-btn:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+
+  /* ── PROGRESSION SSE ── */
+  .cp-progress {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; font-size: .75rem; display: flex; flex-direction: column; gap: 6px;
+  }
+  .cp-progress-bar-wrap {
+    background: var(--border); border-radius: 3px; height: 6px; overflow: hidden;
+  }
+  .cp-progress-bar { background: var(--accent); height: 100%; transition: width .2s; }
+  .cp-progress-line {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .cp-progress-line .pi-icon { font-size: .85rem; flex-shrink: 0; }
+  .cp-progress-line .pi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .cp-progress-line .pi-status { font-size: .65rem; color: var(--muted); }
+  .cp-stderr { background: #1a0a0a; color: #f8a0a0; font-size: .65rem; padding: 4px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ── DETAIL BAR ── */
   .detail-bar {
@@ -240,6 +342,22 @@
     user-select: none;
   }
 
+  /* ── PIXEL AXES OVERLAY ── */
+  .pixel-axes-canvas {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 200;
+    width: 100%; height: 100%;
+  }
+
+  /* ── DELETE BUTTON ── */
+  .iter-del-btn {
+    width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border);
+    background: rgba(0,0,0,.55); color: var(--muted); font-size: .65rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background .12s, color .12s;
+  }
+  .iter-del-btn:hover { background: #5a1a1a; color: #ef9090; border-color: #ef6060; }
+
   /* ── EMPTY STATE ── */
   .empty-wrap { flex: 1; display: flex; align-items: center; justify-content: center; }
   .empty-state { text-align: center; color: var(--muted); }
@@ -267,9 +385,59 @@
     <span class="sidebar-count" id="sidebar-count">0</span>
   </div>
   <div class="sidebar-list" id="sidebar-list"></div>
+  <div class="sidebar-footer">
+    <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" title="Tout sélectionner">
+    <span class="sel-count" id="sel-count">0 sélectionnée(s)</span>
+  </div>
 </aside>
 
 <!-- ── CONTENT ── -->
+<!-- ── PANNEAU CONVERT ── -->
+<aside class="convert-panel" id="convert-panel">
+  <div class="cp-header">
+    <span class="cp-title">Convertir</span>
+    <span id="cp-status-dot" style="margin-left:auto;font-size:.65rem;color:var(--muted)">…</span>
+  </div>
+  <div class="cp-body" id="cp-body">
+
+    <!-- Message mode dégradé -->
+    <div class="cp-offline-msg" id="cp-offline-msg" style="display:none">
+      API hors-ligne — démarre<br>
+      <code>python pixel-lab/server/app.py</code><br>
+      pour activer les conversions.
+    </div>
+
+    <!-- Preset -->
+    <div>
+      <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.6px">Preset</div>
+      <select class="preset-select" id="preset-select" onchange="loadPreset(this.value)" disabled>
+        <option value="">— Choisir un preset —</option>
+        <option value="nettoyage">Nettoyage GenAI</option>
+        <option value="upscale">Upscale propre x2</option>
+        <option value="jpeg">Correction JPEG</option>
+      </select>
+    </div>
+
+    <!-- Builder d'étapes -->
+    <div>
+      <div style="font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px">Pipeline</div>
+      <div class="step-list" id="step-list"></div>
+      <button class="cp-add-btn" id="cp-add-btn" onclick="addStep()" disabled style="margin-top:6px">
+        + Ajouter une étape
+      </button>
+    </div>
+
+    <!-- Progression -->
+    <div id="cp-progress-wrap" style="display:none"></div>
+
+    <!-- Lancer -->
+    <button class="cp-launch-btn" id="cp-launch-btn" onclick="launchConvert()" disabled>
+      ▶ Lancer
+    </button>
+
+  </div>
+</aside>
+
 <div class="content" id="content">
   <div class="empty-wrap">
     <div class="empty-state" id="empty-state">
@@ -353,7 +521,11 @@ function renderSidebar() {
     const origIdx  = allKeys.indexOf(name);
     const ts = lastTimestamp(item);
     const tsStr = ts ? new Date(ts).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
+    const checked = selectedImages.has(name) ? 'checked' : '';
     return `<div class="img-item${isActive ? ' active' : ''}" onclick="selectImage(${origIdx})">
+      <input type="checkbox" class="img-select" data-name="${name}" ${checked}
+        onclick="event.stopPropagation()"
+        onchange="toggleImageSelect(this.dataset.name, this.checked)">
       ${src ? `<img src="${src}" onerror="this.style.display='none'">` : '<div style="width:38px;height:38px;background:var(--surface2);border-radius:5px;flex-shrink:0"></div>'}
       <div class="item-info">
         <div class="item-name">${name}</div>
@@ -406,11 +578,12 @@ function renderContent() {
       <div class="toolbar">
         <button class="btn btn-sort${sortDesc ? ' active' : ''}" onclick="toggleSort()">${sortDesc ? '↓ récent' : '↑ ancien'}</button>
         <div class="toolbar-sep"></div>
-        ${['all','sharpen','scale2x','denoise'].map(a =>
+        ${['all','sharpen','scale2x','denoise','pixelsnap'].map(a =>
           `<button class="btn${filterAlgo===a?' active':''}" onclick="setFilter('${a}')">${a==='all'?'Tous':a}</button>`
         ).join('')}
         <span class="spacer"></span>
         <span style="font-size:.68rem;color:var(--muted);flex-shrink:0">${runs.length} iter.</span>
+        <button class="btn" onclick="deleteAllIters('${activeImage}')" style="color:#ef6060;border-color:#5a2020" title="Supprimer toutes les itérations">🗑 Tout</button>
       </div>
 
       <div class="iter-grid" id="iter-grid" style="margin-top:8px">
@@ -453,7 +626,9 @@ function buildSourceCard(item) {
   const selClass = compareLeft?.id === id ? 'sel-left' : compareRight?.id === id ? 'sel-right' : '';
   const badge = compareLeft?.id === id ? '<span class="sel-badge left">◀ G</span>'
               : compareRight?.id === id ? '<span class="sel-badge right">D ▶</span>' : '';
-  return `<div class="iter-card ${selClass}" onclick="cardClick('source','${src}','Source','source','source',{},'')">
+  return `<div class="iter-card ${selClass}" onclick="cardClick(this)"
+    data-id="source" data-src="${src}" data-label="Source"
+    data-algo="source" data-method="source" data-params="{}" data-ts="">
     <div class="card-img-wrap" data-zoom="1" data-px="0" data-py="0"
          onwheel="onZoom(event,this)" onmousedown="zoomDragStart(event,this)" onmousemove="zoomDragMove(event,this)" onmouseup="zoomDragEnd(this)" onmouseleave="zoomDragEnd(this)">
       <img src="${src}" alt="source" draggable="false">
@@ -477,8 +652,11 @@ function buildRunCard(run) {
   const params = run.params || {};
   const paramStr = Object.entries(params).map(([k,v]) => `${k}=${v}`).join(', ') || '—';
   const ts = run.timestamp ? new Date(run.timestamp).toLocaleString('fr-FR', {dateStyle:'short', timeStyle:'short'}) : '';
-  const paramsJSON = JSON.stringify(params).replace(/'/g, "\\'");
-  return `<div class="iter-card ${selClass}" onclick="cardClick('${id}','${src}','#${run.index} ${run.method}','${run.algo}','${run.method}',${JSON.stringify(params)},'${ts}')">
+  const filename = run.output.split('/').pop().split('\\').pop();
+  const paramsAttr = JSON.stringify(params).replace(/'/g, '&#39;');
+  return `<div class="iter-card ${selClass}" onclick="cardClick(this)"
+    data-id="${id}" data-src="${src}" data-label="#${run.index} ${run.method}"
+    data-algo="${run.algo}" data-method="${run.method}" data-params='${paramsAttr}' data-ts="${ts}">
     <div class="card-img-wrap" data-zoom="1" data-px="0" data-py="0"
          onwheel="onZoom(event,this)" onmousedown="zoomDragStart(event,this)" onmousemove="zoomDragMove(event,this)" onmouseup="zoomDragEnd(this)" onmouseleave="zoomDragEnd(this)">
       <img src="${src}" alt="iter ${run.index}" draggable="false">
@@ -490,25 +668,43 @@ function buildRunCard(run) {
       <div class="iter-label">${run.method}</div>
       <div class="iter-params">${paramStr}</div>
       <div class="iter-time">${ts}</div>
+      <button class="iter-del-btn" title="Supprimer"
+        onclick="event.stopPropagation(); deleteIter('${activeImage}', '${filename}')">🗑</button>
     </div>
   </div>`;
 }
 
 // ─── Clic sur une carte ───────────────────────────────────────────────────────
-function cardClick(id, src, label, algo, method, params, ts) {
+function cardClick(el) {
+  // Remonter jusqu'à .iter-card si on a cliqué sur un enfant
+  const card = el.closest ? el.closest('.iter-card') : el;
+  if (!card) return;
+
+  const id     = card.dataset.id;
+  const src    = card.dataset.src;
+  const label  = card.dataset.label;
+  const algo   = card.dataset.algo;
+  const method = card.dataset.method;
+  const params = JSON.parse(card.dataset.params || '{}');
+  const ts     = card.dataset.ts || '';
+
   const entry = mkEntry(id, src, label, algo, method, params, ts);
   const isL = compareLeft?.id  === id;
   const isR = compareRight?.id === id;
 
-  if (isL && isR) { compareLeft = entry; compareRight = null; }
-  else if (isL)   { compareLeft = compareRight; compareRight = entry; }
-  else if (isR)   { compareRight = compareLeft; compareLeft = entry; }
-  else if (!compareLeft)  { compareLeft = entry; }
-  else if (!compareRight) { compareRight = compareLeft.id !== id ? entry : null; if (!compareRight) compareLeft = entry; }
-  else { compareLeft = compareRight; compareRight = entry; }
-
-  // Jamais les deux identiques
-  if (compareLeft?.id === compareRight?.id) compareRight = null;
+  if (isL) {
+    // Clic sur gauche → désélectionner, promouvoir droite à gauche
+    compareLeft  = compareRight || null;
+    compareRight = null;
+  } else if (isR) {
+    // Clic sur droite → désélectionner droite
+    compareRight = null;
+  } else if (!compareLeft) {
+    compareLeft  = entry;
+  } else {
+    // Remplacer/assigner droite
+    compareRight = entry;
+  }
 
   refreshGrid();
   updateCompare();
@@ -551,6 +747,7 @@ function buildSliderHTML() {
           <img id="cmp-right" src="${compareRight?.src || ''}" alt="D">
         </div>
       </div>
+      <canvas id="pixel-axes-canvas" class="pixel-axes-canvas" style="display:none"></canvas>
       <div class="compare-divider" id="cmp-div" style="left:50%">
         <div class="compare-handle">⇔</div>
       </div>
@@ -562,6 +759,7 @@ function buildSliderHTML() {
         <span class="zoom-level" id="cmp-zoom-label">×1</span>
         <button class="zbtn" onclick="cmpZoomStep(+1)" title="Zoomer">+</button>
         <button class="zbtn" onclick="cmpZoomReset()" title="Réinitialiser zoom">↺</button>
+        <button class="zbtn" id="pixel-axes-btn" onclick="togglePixelAxes()" title="Afficher les axes pixel">⊹</button>
       </div>
       <span class="flabel" style="color:var(--accent2)">${rl}</span>
     </div>
@@ -598,7 +796,85 @@ function updateCompare() {
 
 // ─── Zoom synchronisé compare ────────────────────────────────────────────────
 let cmpZ = 1, cmpPx = 0, cmpPy = 0;
-let _sliderSync = null; // callback appelé après chaque changement zoom/pan
+let _sliderSync   = null;
+let showPixelAxes = false;
+
+// ─── Axes pixel ───────────────────────────────────────────────────────────────
+function togglePixelAxes() {
+  showPixelAxes = !showPixelAxes;
+  const btn    = document.getElementById('pixel-axes-btn');
+  const canvas = document.getElementById('pixel-axes-canvas');
+  if (btn) btn.classList.toggle('active', showPixelAxes);
+  if (canvas) canvas.style.display = showPixelAxes ? '' : 'none';
+  if (showPixelAxes) drawPixelAxes();
+}
+
+function drawPixelAxes() {
+  const canvas = document.getElementById('pixel-axes-canvas');
+  const body   = document.getElementById('cmp-body');
+  const imgEl  = document.getElementById('cmp-left');
+  if (!canvas || !body || !imgEl) return;
+
+  const bw = body.getBoundingClientRect().width;
+  const bh = body.getBoundingClientRect().height;
+  canvas.width  = bw;
+  canvas.height = bh;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, bw, bh);
+  if (!showPixelAxes) return;
+
+  const nw = imgEl.naturalWidth;
+  if (!nw) { imgEl.addEventListener('load', drawPixelAxes, { once: true }); return; }
+
+  // Taille d'un pixel natif à l'écran
+  const displayW  = imgEl.getBoundingClientRect().width || bw;
+  const rawPixSz  = cmpZ * (displayW / nw);
+  const pixSz     = Math.max(4, rawPixSz);
+
+  // Origine : coin sup-gauche de l'image dans le repère du body
+  const cx = bw / 2;
+  const cy = bh / 2;
+  // Position du coin (0,0) de l'image zoomée dans le body
+  const imgW = displayW;
+  const imgH = imgEl.getBoundingClientRect().height || bh;
+  const ox = cx + cmpPx * cmpZ - imgW / 2 + 10;
+  const oy = cy + cmpPy * cmpZ - imgH / 2 + 10;
+
+  const COLOR = '#00ff88';
+  const HEAD  = Math.max(4, pixSz * 0.4);
+
+  function arrow(x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const ux = dx/len, uy = dy/len;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    // tête de flèche
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - ux*HEAD - uy*HEAD*0.5, y2 - uy*HEAD + ux*HEAD*0.5);
+    ctx.lineTo(x2 - ux*HEAD + uy*HEAD*0.5, y2 - uy*HEAD - ux*HEAD*0.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = COLOR;
+  ctx.fillStyle   = COLOR;
+  ctx.lineWidth   = 2;
+  ctx.font        = 'bold 11px monospace';
+  ctx.textBaseline = 'middle';
+
+  // Axe X →
+  arrow(ox, oy, ox + pixSz, oy);
+  ctx.fillText('X', ox + pixSz + 4, oy);
+
+  // Axe Y ↓
+  arrow(ox, oy, ox, oy + pixSz);
+  ctx.fillText('Y', ox + 4, oy + pixSz + 8);
+}
 
 function applyCmpZoom() {
   const layer = document.getElementById('cmp-zoom-layer');
@@ -609,11 +885,13 @@ function applyCmpZoom() {
   if (body) body.style.cursor = cmpZ > 1 ? 'grab' : 'crosshair';
   // Resync le divider : sa position visuelle est fixe, l'overlay doit suivre
   if (_sliderSync) _sliderSync();
+  if (showPixelAxes) drawPixelAxes();
 }
 
 function cmpZoomStep(dir) {
-  const steps = [1, 1.5, 2, 3, 4, 6, 8];
-  let idx = steps.findIndex(s => s >= cmpZ - 0.05);
+  const steps = [0.1, 0.2, 0.33, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8];
+  let idx = steps.findIndex(s => s >= cmpZ - 0.02);
+  if (idx === -1) idx = steps.length - 1;
   idx = Math.max(0, Math.min(steps.length - 1, idx + dir));
   cmpZ = steps[idx];
   if (cmpZ === 1) { cmpPx = 0; cmpPy = 0; }
@@ -631,6 +909,13 @@ function initSlider() {
   const divEl   = document.getElementById('cmp-div');
   const imgR    = document.getElementById('cmp-right');
   if (!body || !overlay || !divEl) return;
+
+  // Réinitialiser le canvas axes à chaque changement d'image
+  const axCv = document.getElementById('pixel-axes-canvas');
+  if (axCv) { const c = axCv.getContext('2d'); c.clearRect(0,0,axCv.width,axCv.height); }
+  // Écouter load pour redessiner si axes actifs (tâche 3.3)
+  const imgL = document.getElementById('cmp-left');
+  if (imgL) imgL.addEventListener('load', () => { if (showPixelAxes) drawPixelAxes(); }, { once: true });
 
   cmpZ = 1; cmpPx = 0; cmpPy = 0;
 
@@ -700,14 +985,26 @@ function initSlider() {
     if (layer) layer.style.transition = 'transform 0.08s ease-out';
   };
 
-  // ── Wheel zoom ───────────────────────────────────────────────────────────────
+  // ── Wheel zoom centré sur le curseur ─────────────────────────────────────────
   body.onwheel = e => {
     e.preventDefault();
+    const rect   = body.getBoundingClientRect();
+    const cx     = rect.width  / 2;
+    const cy     = rect.height / 2;
+    // Position du curseur dans le repère naturel (avant zoom)
+    const mx = (e.clientX - rect.left - cx) / cmpZ - cmpPx;
+    const my = (e.clientY - rect.top  - cy) / cmpZ - cmpPy;
     const factor = Math.pow(0.95, e.deltaY / 20);
-    cmpZ = Math.max(1, Math.min(8, cmpZ * factor));
-    if (cmpZ < 1.05) { cmpZ = 1; cmpPx = 0; cmpPy = 0; }
+    const newZ   = Math.max(0.05, Math.min(8, cmpZ * factor));
+    if (Math.abs(newZ - 1) < 0.05) { cmpZ = 1; cmpPx = 0; cmpPy = 0; }
+    else {
+      // Ajuster la translation pour que le point sous le curseur reste fixe
+      cmpPx = (e.clientX - rect.left - cx) / newZ - mx;
+      cmpPy = (e.clientY - rect.top  - cy) / newZ - my;
+      cmpZ  = newZ;
+    }
     const layer = document.getElementById('cmp-zoom-layer');
-    if (layer) layer.style.transition = 'transform 0.08s ease-out';
+    if (layer) layer.style.transition = 'none';
     applyCmpZoom();
   };
 
@@ -749,12 +1046,25 @@ function applyZoom(wrap) {
 
 function onZoom(e, wrap) {
   e.preventDefault();
-  let z = parseFloat(wrap.dataset.zoom) || 1;
-  z = Math.max(1, Math.min(8, z + (e.deltaY < 0 ? 0.3 : -0.3)));
-  if (z === 1) { wrap.dataset.px = 0; wrap.dataset.py = 0; }
-  wrap.dataset.zoom = z;
+  const rect = wrap.getBoundingClientRect();
+  const cx   = rect.width  / 2;
+  const cy   = rect.height / 2;
+  const oldZ = parseFloat(wrap.dataset.zoom) || 1;
+  const px   = parseFloat(wrap.dataset.px)   || 0;
+  const py   = parseFloat(wrap.dataset.py)   || 0;
+  // Point sous le curseur dans le repère naturel
+  const mx = (e.clientX - rect.left - cx) / oldZ - px;
+  const my = (e.clientY - rect.top  - cy) / oldZ - py;
+  const newZ = Math.max(1, Math.min(8, oldZ + (e.deltaY < 0 ? 0.4 : -0.4)));
+  if (newZ <= 1) {
+    wrap.dataset.zoom = 1; wrap.dataset.px = 0; wrap.dataset.py = 0;
+  } else {
+    wrap.dataset.zoom = newZ;
+    wrap.dataset.px   = (e.clientX - rect.left - cx) / newZ - mx;
+    wrap.dataset.py   = (e.clientY - rect.top  - cy) / newZ - my;
+  }
   applyZoom(wrap);
-  wrap.style.cursor = z > 1 ? 'grab' : 'crosshair';
+  wrap.style.cursor = newZ > 1 ? 'grab' : 'crosshair';
 }
 
 function zoomDragStart(e, wrap) {
@@ -830,8 +1140,370 @@ setInterval(async () => {
   } catch {}
 }, 5000);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PANNEAU CONVERT — tâches 3.3 à 3.11
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const API = '';
+let algoCatalog = null;   // catalogue reçu de GET /api/algos
+let apiOnline   = false;
+
+// ─── 3.3 Chargement catalogue algo ───────────────────────────────────────────
+async function loadAlgosCatalog() {
+  try {
+    const res = await fetch(API + '/api/algos');
+    if (!res.ok) throw new Error();
+    algoCatalog = await res.json();
+    apiOnline = true;
+    setApiOnline(true);
+    // Ajouter une étape par défaut si pipeline vide
+    if (document.getElementById('step-list').children.length === 0) addStep();
+  } catch {
+    apiOnline = false;
+    setApiOnline(false);
+  }
+}
+
+function setApiOnline(online) {
+  const dot    = document.getElementById('cp-status-dot');
+  const msg    = document.getElementById('cp-offline-msg');
+  const preset = document.getElementById('preset-select');
+  const addBtn = document.getElementById('cp-add-btn');
+  const launch = document.getElementById('cp-launch-btn');
+
+  if (online) {
+    dot.textContent = '● En ligne'; dot.style.color = 'var(--green)';
+    msg.style.display = 'none';
+    preset.disabled = false;
+    addBtn.disabled = false;
+    launch.disabled = false;
+  } else {
+    dot.textContent = '● Hors-ligne'; dot.style.color = '#ef6060';
+    msg.style.display = '';
+    preset.disabled = true;
+    addBtn.disabled = true;
+    launch.disabled = true;
+    document.getElementById('step-list').innerHTML = '';
+  }
+}
+
+// ─── 3.1 Gestion sélection images ────────────────────────────────────────────
+let selectedImages = new Set();
+
+function toggleSelectAll(checked) {
+  const cbs = document.querySelectorAll('.img-select');
+  cbs.forEach(cb => {
+    cb.checked = checked;
+    const name = cb.dataset.name;
+    if (checked) selectedImages.add(name);
+    else selectedImages.delete(name);
+  });
+  updateSelCount();
+}
+
+function toggleImageSelect(name, checked) {
+  if (checked) selectedImages.add(name);
+  else selectedImages.delete(name);
+  const allCbs = document.querySelectorAll('.img-select');
+  const allChecked = [...allCbs].every(cb => cb.checked);
+  document.getElementById('select-all-cb').checked = allChecked;
+  updateSelCount();
+}
+
+function updateSelCount() {
+  document.getElementById('sel-count').textContent = selectedImages.size + ' sélectionnée(s)';
+}
+
+// ─── 3.4 Composant "étape" ───────────────────────────────────────────────────
+let stepSeq = 0;
+
+function addStep(preset = null) {
+  if (!algoCatalog) return;
+  const id = ++stepSeq;
+  const firstAlgo = preset?.algo || Object.keys(algoCatalog)[0];
+  const firstMethod = preset?.method || Object.keys(algoCatalog[firstAlgo].methods)[0];
+
+  const row = document.createElement('div');
+  row.className = 'step-row';
+  row.dataset.stepId = id;
+  row.innerHTML = buildStepHTML(id, firstAlgo, firstMethod, preset?.params || {});
+  document.getElementById('step-list').appendChild(row);
+}
+
+function buildStepHTML(id, selAlgo, selMethod, presetParams = {}) {
+  const algoOpts = Object.keys(algoCatalog).map(a =>
+    `<option value="${a}"${a === selAlgo ? ' selected' : ''}>${a}</option>`
+  ).join('');
+
+  const methods = algoCatalog[selAlgo]?.methods || {};
+  const methodOpts = Object.keys(methods).map(m =>
+    `<option value="${m}"${m === selMethod ? ' selected' : ''}>${m}</option>`
+  ).join('');
+
+  const paramsHTML = buildParamsHTML(selAlgo, selMethod, presetParams);
+
+  return `
+    <div class="step-row-top">
+      <select onchange="onAlgoChange(this,${id})">${algoOpts}</select>
+      <select id="method-sel-${id}" onchange="onMethodChange(this,${id})">${methodOpts}</select>
+      <div class="step-ctrl">
+        <button class="step-btn" onclick="moveStep(${id},-1)" title="Monter">↑</button>
+        <button class="step-btn" onclick="moveStep(${id},+1)" title="Descendre">↓</button>
+        <button class="step-btn" onclick="removeStep(${id})" title="Supprimer">×</button>
+      </div>
+    </div>
+    <div class="step-params" id="step-params-${id}">${paramsHTML}</div>`;
+}
+
+// ─── 3.5 Génération des inputs params ────────────────────────────────────────
+function buildParamsHTML(algo, method, presetParams = {}) {
+  const params = algoCatalog?.[algo]?.methods?.[method]?.params || [];
+  return params.map(p => {
+    const val = presetParams[p.name] !== undefined ? presetParams[p.name] : p.default;
+    const step = p.type === 'float' ? '0.1' : '1';
+    return `<div class="param-field">
+      <label>${p.name}</label>
+      <input type="number" min="${p.min}" max="${p.max}" step="${step}"
+             value="${val}" data-param="${p.name}">
+    </div>`;
+  }).join('');
+}
+
+// ─── 3.6 Reset des inputs au changement de méthode ───────────────────────────
+function onAlgoChange(sel, id) {
+  const algo = sel.value;
+  const methods = algoCatalog[algo]?.methods || {};
+  const methodSel = document.getElementById('method-sel-' + id);
+  methodSel.innerHTML = Object.keys(methods).map(m =>
+    `<option value="${m}">${m}</option>`
+  ).join('');
+  refreshStepParams(id, algo, Object.keys(methods)[0]);
+}
+
+function onMethodChange(sel, id) {
+  const row = document.querySelector(`.step-row[data-step-id="${id}"]`);
+  const algoSel = row.querySelector('select');
+  refreshStepParams(id, algoSel.value, sel.value);
+}
+
+function refreshStepParams(id, algo, method) {
+  const wrap = document.getElementById('step-params-' + id);
+  if (wrap) wrap.innerHTML = buildParamsHTML(algo, method);
+}
+
+// ─── Déplacer / supprimer une étape ──────────────────────────────────────────
+function moveStep(id, dir) {
+  const list = document.getElementById('step-list');
+  const row  = document.querySelector(`.step-row[data-step-id="${id}"]`);
+  if (!row) return;
+  if (dir < 0 && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+  else if (dir > 0 && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+}
+
+function removeStep(id) {
+  const row = document.querySelector(`.step-row[data-step-id="${id}"]`);
+  if (row) row.remove();
+}
+
+// ─── 3.7 Presets ─────────────────────────────────────────────────────────────
+const PRESETS = {
+  // Sprite upscalé avec interpolation (pixels flous) → snap + dépixellisation douce + sharpen
+  nettoyage: [
+    { algo: 'pixelsnap', method: 'median',       params: { block: 0 } },
+    { algo: 'denoise',   method: 'median',       params: { size: 3 } },
+    { algo: 'sharpen',   method: 'unsharp_mask', params: { radius: 1.0, percent: 120, threshold: 2 } },
+  ],
+  // Image native propre → affûtage léger avant upscale Scale2x
+  upscale: [
+    { algo: 'sharpen',  method: 'unsharp_mask', params: { radius: 0.8, percent: 100, threshold: 1 } },
+    { algo: 'scale2x',  method: 'scale2x',      params: {} },
+  ],
+  // JPEG compressé → lissage bilatéral des blocs + restauration des bords
+  jpeg: [
+    { algo: 'denoise',  method: 'bilateral', params: { d: 9, sigma_color: 60, sigma_space: 60 } },
+    { algo: 'denoise',  method: 'nlm',       params: { h: 8, template_size: 7, search_size: 21 } },
+    { algo: 'sharpen',  method: 'kernel',    params: { amount: 1.2 } },
+  ],
+};
+
+function loadPreset(key) {
+  if (!key || !PRESETS[key] || !algoCatalog) return;
+  document.getElementById('step-list').innerHTML = '';
+  stepSeq = 0;
+  PRESETS[key].forEach(step => addStep(step));
+  document.getElementById('preset-select').value = '';
+}
+
+// ─── 3.8 Lancer la conversion ────────────────────────────────────────────────
+async function launchConvert() {
+  if (!apiOnline || selectedImages.size === 0) {
+    if (selectedImages.size === 0) alert('Sélectionne au moins une image dans la sidebar.');
+    return;
+  }
+
+  const pipeline = collectPipeline();
+  if (!pipeline.length) { alert('Ajoute au moins une étape de traitement.'); return; }
+
+  const payload = {
+    images: [...selectedImages],
+    pipeline,
+  };
+
+  let jobId;
+  try {
+    const res = await fetch(API + '/api/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Erreur : ' + (data.errors?.join('\n') || data.error));
+      return;
+    }
+    jobId = data.job_id;
+  } catch (e) {
+    alert('Impossible de joindre le serveur Flask.\n' + e.message);
+    return;
+  }
+
+  // 3.9 Ouvrir le flux SSE
+  openSSEStream(jobId, payload.images.length * pipeline.length);
+}
+
+function collectPipeline() {
+  return [...document.querySelectorAll('.step-row')].map(row => {
+    const selects = row.querySelectorAll('select');
+    const algo   = selects[0].value;
+    const method = selects[1].value;
+    const params = {};
+    row.querySelectorAll('input[data-param]').forEach(inp => {
+      params[inp.dataset.param] = parseFloat(inp.value);
+    });
+    return { algo, method, params };
+  });
+}
+
+// ─── 3.9 Rendu live SSE ──────────────────────────────────────────────────────
+function openSSEStream(jobId, totalSteps) {
+  const wrap = document.getElementById('cp-progress-wrap');
+  const launch = document.getElementById('cp-launch-btn');
+  launch.disabled = true;
+
+  let done = 0;
+  const lines = {};  // image → {el, steps}
+
+  wrap.style.display = '';
+  wrap.innerHTML = `<div class="cp-progress">
+    <div style="font-size:.72rem;color:var(--muted)">Progression <span id="cp-prog-txt">0/${totalSteps}</span></div>
+    <div class="cp-progress-bar-wrap"><div class="cp-progress-bar" id="cp-prog-bar" style="width:0%"></div></div>
+    <div id="cp-prog-lines"></div>
+  </div>`;
+
+  const es = new EventSource(API + '/api/jobs/' + jobId + '/stream');
+
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+
+    if (ev.type === 'warning') {
+      const linesEl = document.getElementById('cp-prog-lines');
+      const w = document.createElement('div');
+      w.className = 'cp-progress-line';
+      w.innerHTML = `<span class="pi-icon">⚠️</span><span class="pi-name" style="color:#f0c040;font-size:.7rem">${ev.message}</span>`;
+      linesEl.appendChild(w);
+      return;
+    }
+
+    if (ev.type === 'step_start') {
+      const key = ev.image + '_' + ev.step;
+      const linesEl = document.getElementById('cp-prog-lines');
+      const el = document.createElement('div');
+      el.className = 'cp-progress-line';
+      el.id = 'pl-' + key;
+      el.innerHTML = `<span class="pi-icon">⏳</span>
+        <span class="pi-name">${ev.image} → ${ev.algo}/${ev.method}</span>
+        <span class="pi-status">en cours…</span>`;
+      linesEl.appendChild(el);
+      return;
+    }
+
+    if (ev.type === 'step_done') {
+      done++;
+      const key = ev.image + '_' + ev.step;
+      const el = document.getElementById('pl-' + key);
+      if (el) el.querySelector('.pi-icon').textContent = '✅';
+      if (el) el.querySelector('.pi-status').textContent = 'ok';
+      document.getElementById('cp-prog-txt').textContent = done + '/' + totalSteps;
+      document.getElementById('cp-prog-bar').style.width = (done / totalSteps * 100) + '%';
+      return;
+    }
+
+    if (ev.type === 'step_error') {
+      const key = ev.image + '_' + ev.step;
+      const el = document.getElementById('pl-' + key);
+      if (el) {
+        el.querySelector('.pi-icon').textContent = '❌';
+        el.querySelector('.pi-status').textContent = 'erreur';
+        const stderr = document.createElement('div');
+        stderr.className = 'cp-stderr';
+        stderr.textContent = ev.stderr || 'Erreur inconnue';
+        el.insertAdjacentElement('afterend', stderr);
+      }
+      return;
+    }
+
+    // 3.10 Fin du job → refresh
+    if (ev.type === 'done') {
+      es.close();
+      launch.disabled = false;
+      refreshAfterJob();
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    launch.disabled = false;
+  };
+}
+
+// ─── 3.10 Refresh post-job ───────────────────────────────────────────────────
+async function refreshAfterJob() {
+  try {
+    const res = await fetch('../history.json?t=' + Date.now());
+    if (res.ok) {
+      history = await res.json();
+      renderSidebar();
+      if (activeImage && history[activeImage]) renderContent();
+      updateHeader();
+    }
+  } catch {}
+}
+
+// ─── Suppression d'itérations ────────────────────────────────────────────────
+async function deleteIter(stem, filename) {
+  const res = await fetch(`/api/outputs/${encodeURIComponent(stem)}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  if (res.ok) {
+    await refreshAfterJob();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert('Erreur : ' + (d.error || res.status));
+  }
+}
+
+async function deleteAllIters(stem) {
+  const res = await fetch(`/api/outputs/${encodeURIComponent(stem)}`, { method: 'DELETE' });
+  if (res.ok) {
+    compareLeft = null; compareRight = null;
+    await refreshAfterJob();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert('Erreur : ' + (d.error || res.status));
+  }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadHistory();
+loadAlgosCatalog();
 </script>
 </body>
 </html>

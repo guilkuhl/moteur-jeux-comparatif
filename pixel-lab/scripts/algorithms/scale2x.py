@@ -99,3 +99,11 @@ METHODS = {
     "scale2x": scale2x,
     "eagle2x": eagle2x,
 }
+
+PARAMS = {
+    "nearest": [
+        {"name": "scale", "type": "int", "default": 2, "min": 1, "max": 8},
+    ],
+    "scale2x": [],
+    "eagle2x": [],
+}

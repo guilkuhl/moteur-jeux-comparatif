@@ -37,15 +37,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 from algorithms import sharpen as sharpen_mod
 from algorithms import scale2x as scale2x_mod
 from algorithms import denoise as denoise_mod
+from algorithms import pixelsnap as pixelsnap_mod
 
 HISTORY_FILE = ROOT / "history.json"
 OUTPUTS_DIR  = ROOT / "outputs"
 INPUTS_DIR   = ROOT / "inputs"
 
 ALGO_MAP = {
-    "sharpen": sharpen_mod.METHODS,
-    "scale2x": scale2x_mod.METHODS,
-    "denoise": denoise_mod.METHODS,
+    "sharpen":   sharpen_mod.METHODS,
+    "scale2x":   scale2x_mod.METHODS,
+    "denoise":   denoise_mod.METHODS,
+    "pixelsnap": pixelsnap_mod.METHODS,
 }
 
 
@@ -159,6 +161,8 @@ def main():
     print(f"[open] {src_path.name}  ({img.width}×{img.height}, mode={img.mode})")
 
     params = parse_params(args.params)
+    if 'name' in params:
+        image_name = str(params.pop('name'))
     history = load_history()
     iter_idx = next_iter_index(image_name, history)
 

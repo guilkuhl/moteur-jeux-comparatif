@@ -48,3 +48,19 @@ METHODS = {
     "bilateral": bilateral_filter,
     "nlm": nlm_denoise,
 }
+
+PARAMS = {
+    "median": [
+        {"name": "size", "type": "int", "default": 3, "min": 1, "max": 15},
+    ],
+    "bilateral": [
+        {"name": "d",           "type": "int",   "default": 9,  "min": 1, "max": 25},
+        {"name": "sigma_color", "type": "float", "default": 75, "min": 1, "max": 200},
+        {"name": "sigma_space", "type": "float", "default": 75, "min": 1, "max": 200},
+    ],
+    "nlm": [
+        {"name": "h",             "type": "float", "default": 10, "min": 1,  "max": 50},
+        {"name": "template_size", "type": "int",   "default": 7,  "min": 3,  "max": 21},
+        {"name": "search_size",   "type": "int",   "default": 21, "min": 7,  "max": 63},
+    ],
+}

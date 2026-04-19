@@ -50,3 +50,17 @@ METHODS = {
     "laplacian": laplacian_sharpen,
     "kernel": kernel_sharpen,
 }
+
+PARAMS = {
+    "unsharp_mask": [
+        {"name": "radius",    "type": "float", "default": 1.0, "min": 0.1, "max": 10.0},
+        {"name": "percent",   "type": "int",   "default": 150, "min": 0,   "max": 500},
+        {"name": "threshold", "type": "int",   "default": 3,   "min": 0,   "max": 255},
+    ],
+    "laplacian": [
+        {"name": "strength", "type": "float", "default": 1.0, "min": 0.1, "max": 5.0},
+    ],
+    "kernel": [
+        {"name": "amount", "type": "float", "default": 1.5, "min": 0.1, "max": 5.0},
+    ],
+}
