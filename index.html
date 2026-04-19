@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — Démos</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #08080f; color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 1.0rem; font-weight: 400; color: rgba(255,255,255,0.4); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; }
+    h2 { font-size: 2rem; font-weight: 700; margin-bottom: 10px; background: linear-gradient(90deg, #ff8833, #ffdd44, #33ddff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: rgba(255,255,255,0.35); font-size: 0.84rem; margin-bottom: 48px; text-align: center; line-height: 1.7; }
+    .subtitle code { font-family: monospace; background: rgba(255,255,255,0.08); padding: 2px 7px; border-radius: 4px; color: rgba(255,255,255,0.6); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 18px; width: 100%; max-width: 1000px; }
+    .card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;
+      padding: 26px 22px; text-decoration: none; color: inherit;
+      transition: background 0.22s, border-color 0.22s, transform 0.18s; display: block;
+    }
+    .card:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); transform: translateY(-3px); }
+    .card .emoji { font-size: 2.2rem; margin-bottom: 13px; display: block; }
+    .card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 7px; }
+    .card p { font-size: 0.81rem; color: rgba(255,255,255,0.42); line-height: 1.6; }
+    .badge { display: inline-block; margin-top: 13px; font-size: 0.71rem; font-family: monospace; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); padding: 3px 10px; border-radius: 999px; }
+    .c1:hover { border-color: rgba(255,80,30,0.5); }
+    .c2:hover { border-color: rgba(180,230,255,0.4); }
+    .c3:hover { border-color: rgba(50,220,255,0.4); }
+    .c4:hover { border-color: rgba(255,180,50,0.5); }
+    .c5:hover { border-color: rgba(180,255,180,0.4); }
+    footer { margin-top: 44px; color: rgba(255,255,255,0.18); font-size: 0.77rem; text-align: center; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>SpriteGPULayer</h1>
+  <h2>Démos interactives</h2>
+  <p class="subtitle">
+    Chaque démo illustre le rendu <code>GPU batched</code> :<br>
+    des milliers de sprites dessinés en un seul draw call via <code>ParticleContainer</code>.
+  </p>
+
+  <div class="grid">
+
+    <a class="card c1" href="1-debris-explosion.html">
+      <span class="emoji">💥</span>
+      <h3>Débris & Explosions</h3>
+      <p>Cliquez pour créer des explosions. 350+ fragments avec gravité, rebond, et friction. Maintenez le clic pour une rafale continue.</p>
+      <span class="badge">~80 000 sprites max</span>
+    </a>
+
+    <a class="card c2" href="2-neige-feuilles.html">
+      <span class="emoji">🌨</span>
+      <h3>Neige & Feuilles mortes</h3>
+      <p>5 000 particules atmosphériques avec vent oscillant et variation de profondeur. Basculez entre neige et feuilles d'automne.</p>
+      <span class="badge">5 000 sprites stables</span>
+    </a>
+
+    <a class="card c3" href="3-boids.html">
+      <span class="emoji">🐦</span>
+      <h3>Boids — Craig Reynolds</h3>
+      <p>2 000 agents autonomes avec les 3 règles de flocking. Grille spatiale O(n·k). Interaction souris : attirer, repousser, disperser.</p>
+      <span class="badge">2 000 boids · grille spatiale</span>
+    </a>
+
+    <a class="card c4" href="4-particules-feu.html">
+      <span class="emoji">🔥</span>
+      <h3>Particules Massives</h3>
+      <p>18 000 particules en blending additif. Turbulence procédurale, rampe de couleur, object pooling. Modes : Feu, Plasma, Blizzard, Multi-sources.</p>
+      <span class="badge">18 000 sprites · blend ADD</span>
+    </a>
+
+    <a class="card c6" href="6-saisons-snes.html" style="border-color:rgba(248,104,0,0.2)">
+      <span class="emoji">🎮</span>
+      <h3>4 Saisons — Style SNES</h3>
+      <p>Même concept, rendu à 256×224 pixels (résolution Super Nintendo) avec mise à l'échelle CSS pixelated, palette 15-bit authentique, sprites 8×8 pixel art, scanlines CRT et vignette. Fondu noir entre saisons.</p>
+      <span class="badge">256×224 · pixel art · scanlines</span>
+    </a>
+
+    <a class="card c5" href="5-quatre-saisons.html">
+      <span class="emoji">🌸☀️🍂❄️</span>
+      <h3>4 Saisons</h3>
+      <p>6 000 particules qui évoluent selon la saison : pétales, lucioles, feuilles mortes, flocons. Transition de fond automatique, ou navigation libre.</p>
+      <span class="badge">6 000 sprites · 4 ambiances</span>
+    </a>
+
+  </div>
+
+  <footer>PixiJS 7 · WebGL · ParticleContainer = 1 draw call GPU</footer>
+</body>
+</html>

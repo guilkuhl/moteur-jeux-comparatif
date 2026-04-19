@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quel moteur 2D mobile+web choisir ?</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0c10;--panel:#111318;--border:#1e2330;--g:#00f5a0;--b:#00b4d8;--o:#ff6b35;--text:#c8d3e6;--dim:#5a6680;--gold:#ffd166}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;padding:24px 12px 56px;
+    background-image:radial-gradient(ellipse 80% 40% at 50% -10%,rgba(0,245,160,.06) 0%,transparent 60%)}
+  header{text-align:center;margin-bottom:22px}
+  .ot{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:4px;color:var(--g);margin-bottom:8px;opacity:.8}
+  h1{font-size:clamp(20px,5.5vw,40px);font-weight:700;color:#fff;line-height:1.15}
+  h1 span{color:var(--g)}
+  .sub{margin-top:6px;font-size:12px;color:var(--dim)}
+  .criteria{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto 20px}
+  .crit{font-family:'Share Tech Mono',monospace;font-size:9px;padding:4px 10px;border-radius:20px;border:1px solid var(--g);color:var(--g);background:rgba(0,245,160,.07)}
+  .alert{max-width:700px;margin:0 auto 14px;border-radius:12px;padding:12px 14px;font-size:11px;line-height:1.7;border:1px solid}
+  .alert.warn{background:rgba(255,209,102,.06);border-color:rgba(255,209,102,.25)}
+  .alert.info{background:rgba(0,180,216,.06);border-color:rgba(0,180,216,.25)}
+  .alert.err{background:rgba(255,107,53,.06);border-color:rgba(255,107,53,.25)}
+  .alert.ver{background:rgba(0,245,160,.04);border-color:rgba(0,245,160,.2)}
+  .alert-t{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;margin-bottom:6px}
+  .alert.warn .alert-t{color:var(--gold)}.alert.info .alert-t{color:var(--b)}.alert.err .alert-t{color:var(--o)}.alert.ver .alert-t{color:var(--g)}
+  .podium{max-width:700px;margin:0 auto 24px;display:grid;gap:12px}
+  .pod{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative}
+  .pod::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .pod.p1::before{background:linear-gradient(90deg,var(--gold),var(--o))}
+  .pod.p2::before{background:var(--b)}
+  .pod.p3::before{background:var(--g)}
+  .pod-head{padding:14px 16px 6px;display:flex;align-items:baseline;gap:10px}
+  .pod-rank{font-family:'Share Tech Mono',monospace;font-size:28px;font-weight:700;opacity:.12;position:absolute;right:14px;top:6px;color:#fff}
+  .pod-name{font-size:20px;font-weight:700;color:#fff}
+  .pod-tag{font-family:'Share Tech Mono',monospace;font-size:10px;padding:3px 10px;border-radius:20px}
+  .pod.p1 .pod-tag{background:rgba(255,209,102,.15);color:var(--gold)}
+  .pod.p2 .pod-tag{background:rgba(0,180,216,.12);color:var(--b)}
+  .pod.p3 .pod-tag{background:rgba(0,245,160,.1);color:var(--g)}
+  .pod-why{padding:2px 16px 8px;font-size:11px;color:var(--dim);line-height:1.6}
+  .pod-scores{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:6px 16px 14px}
+  .ps{padding:3px 0}.ps-label{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:3px}
+  .ps-bar-bg{background:rgba(255,255,255,.05);border-radius:3px;height:6px;overflow:hidden}
+  .ps-bar{height:100%;border-radius:3px}
+  .ps-val{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);margin-top:3px}
+  .full{grid-column:1/-1}
+  .divider{max-width:700px;margin:4px auto 14px;display:flex;align-items:center;gap:10px}
+  .divider-line{flex:1;height:1px;background:var(--border)}
+  .divider-label{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--dim);white-space:nowrap}
+  .distinction{max-width:700px;margin:0 auto 14px}
+  .dist-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;position:relative;overflow:hidden}
+  .dist-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+  .dist-card.gpu::before{background:var(--g)}.dist-card.phys::before{background:var(--o)}
+  .dist-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .dist-title{font-size:13px;font-weight:700;color:#fff}
+  .dist-count{font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:700}
+  .dist-body{font-size:11px;color:var(--dim);line-height:1.5}
+  .dist-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+  .dtag{font-family:'Share Tech Mono',monospace;font-size:8px;padding:3px 7px;border-radius:4px}
+  .dtag.ok{background:rgba(0,245,160,.1);color:var(--g)}.dtag.ko{background:rgba(255,107,53,.1);color:var(--o)}.dtag.wa{background:rgba(255,209,102,.1);color:var(--gold)}
+  .cards{max-width:700px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .card-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 9px;border-bottom:1px solid var(--border)}
+  .cn{font-size:15px;font-weight:700;color:#fff}.cn-sub{font-size:10px;font-weight:400;color:var(--dim);margin-left:5px}
+  .cp{font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(0,245,160,.1);color:var(--g)}
+  .cp.mid{background:rgba(255,209,102,.1);color:var(--gold)}.cp.lo{background:rgba(255,107,53,.1);color:var(--o)}
+  .card-body{display:grid;grid-template-columns:1fr 1fr;gap:9px 8px;padding:11px 14px}
+  .fl{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:3px}
+  .fv{font-size:11px;font-weight:600}
+  .badge{display:inline-block;font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 6px;border-radius:4px}
+  .bg{background:rgba(0,180,216,.12);color:var(--b)}
+  .yes{color:var(--g)}.no{color:var(--o)}.warn{color:var(--gold)}
+  .bar-bg{background:rgba(255,255,255,.06);border-radius:4px;height:7px;overflow:hidden;margin-top:5px}
+  .bar{height:100%;border-radius:4px}
+  .note{max-width:700px;margin:16px auto 0;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);padding:12px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;line-height:2}
+  .note em{color:var(--g);font-style:normal}.note .err{color:var(--o)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="ot">// Vérifié le 18 avril 2026 — v5</div>
+  <h1>Quel moteur pour un jeu <span>2D mobile + web</span> ?</h1>
+  <p class="sub">Poids léger · physique & collisions · particules · sprites avec collision · facilité</p>
+</header>
+
+<div class="criteria">
+  <div class="crit">Mobile + Web</div><div class="crit">Poids léger</div><div class="crit">Physique / Collisions</div>
+  <div class="crit">Particules</div><div class="crit">Sprites AVEC collision</div><div class="crit">Facilité</div>
+</div>
+
+<!-- VERSIONS -->
+<div class="alert ver">
+  <div class="alert-t">✔ Versions vérifiées au 18 avril 2026</div>
+  <strong>Godot 4.6.2</strong> — 1er avril 2026<br>
+  <strong>Phaser 4.0.0 "Caladan"</strong> — 10 avril 2026 (release officielle)<br>
+  <strong>Defold 1.12.3</strong> — 31 mars 2026<br>
+  <strong>Unity 6.4</strong> — mars 2026
+</div>
+
+<!-- CORRECTIONS -->
+<div class="alert err">
+  <div class="alert-t">⚠ Corrections apportées (sources primaires)</div>
+  <strong>Godot APK</strong> — standard = ~30 Mo (arm64) / 80-130 Mo (multi-archi). Custom build 2D = <strong>40 Mo (4 archis) / ~10 Mo (arm64)</strong>. Nécessite recompilation C++.<br>
+  <strong>Phaser 1M sprites = GPU pur</strong>. Aucune physique/collision. Arcade Physics : <strong>~4 500</strong>.<br>
+  <strong>Capacitor</strong> — ajoute <strong>~3 Mo</strong> à l'APK. WebView, pas du natif pur.
+</div>
+
+<!-- TAILLES APK -->
+<div class="divider"><div class="divider-line"></div><div class="divider-label">// Tailles APK Android vérifiées</div><div class="divider-line"></div></div>
+
+<div class="distinction">
+  <div class="dist-card gpu">
+    <div class="dist-head"><div class="dist-title">Defold 1.12.3</div><div class="dist-count" style="color:var(--g)">3-5 Mo</div></div>
+    <div class="dist-body">Export standard depuis l'éditeur. Aucune compilation custom nécessaire. Runtime C++ natif ultra-optimisé.</div>
+    <div class="dist-tags"><div class="dtag ok">✔ Clé en main</div><div class="dtag ok">✔ Natif ARM</div><div class="dtag ok">✔ Box2D inclus</div></div>
+  </div>
+  <div class="dist-card" style="border-left:3px solid var(--b)">
+    <div class="dist-head"><div class="dist-title">Godot 4.6 <span style="font-size:10px;color:var(--dim);font-weight:400">custom build 2D</span></div><div class="dist-count" style="color:var(--b)">~10 Mo (arm64)</div></div>
+    <div class="dist-body">Custom build avec disable_3d, vulkan=no, LTO, modules désactivés. Source : GitHub GameSiProjects (40 Mo pour 4 archis = ~10 Mo/archi).</div>
+    <div class="dist-tags"><div class="dtag ko">✘ Recompilation C++ requise</div><div class="dtag wa">⚠ Technique avancé</div><div class="dtag ok">✔ Natif ARM</div></div>
+  </div>
+  <div class="dist-card" style="border-left:3px solid var(--gold)">
+    <div class="dist-head"><div class="dist-title">Godot 4.6 <span style="font-size:10px;color:var(--dim);font-weight:400">stripped (sans recompil.)</span></div><div class="dist-count" style="color:var(--gold)">~20 Mo (arm64)</div></div>
+    <div class="dist-body">Template stripped standard, sans recompilation. Source : forum Godot (devs mobile 2D).</div>
+    <div class="dist-tags"><div class="dtag ok">✔ Pas de recompilation</div><div class="dtag wa">⚠ Encore lourd</div></div>
+  </div>
+  <div class="dist-card" style="border-left:3px solid var(--o)">
+    <div class="dist-head"><div class="dist-title">Godot 4.6 <span style="font-size:10px;color:var(--dim);font-weight:400">standard (arm64)</span></div><div class="dist-count" style="color:var(--o)">~30 Mo</div></div>
+    <div class="dist-body">Export par défaut, arm64 seul. Source : APKMirror (base APK 13 Mo + libs).</div>
+    <div class="dist-tags"><div class="dtag ko">✘ Inclut 3D, Vulkan, XR…</div></div>
+  </div>
+  <div class="dist-card" style="border-left:3px solid var(--o)">
+    <div class="dist-head"><div class="dist-title">Godot 4.6 <span style="font-size:10px;color:var(--dim);font-weight:400">standard (multi-archi)</span></div><div class="dist-count" style="color:var(--o)">80-130 Mo</div></div>
+    <div class="dist-body">APK universel arm64+armv7+x86. Source : forum Godot (projet vide 244 Ko → APK 114 Mo).</div>
+    <div class="dist-tags"><div class="dtag ko">✘ Inutilisable tel quel</div><div class="dtag wa">⚠ AAB Google Play réduit à ~15 Mo côté user</div></div>
+  </div>
+  <div class="dist-card" style="border-left:3px solid var(--gold)">
+    <div class="dist-head"><div class="dist-title">Phaser 4.0 + Capacitor</div><div class="dist-count" style="color:var(--gold)">~4-5 Mo</div></div>
+    <div class="dist-body">Framework 1,2 Mo + Capacitor ~3 Mo. Léger mais tourne dans une WebView, pas du natif.</div>
+    <div class="dist-tags"><div class="dtag ok">✔ Léger</div><div class="dtag ko">✘ WebView (pas natif)</div><div class="dtag wa">⚠ Perf inférieure</div></div>
+  </div>
+</div>
+
+<!-- CAPACITOR -->
+<div class="alert info">
+  <div class="alert-t">ℹ C'est quoi Capacitor ?</div>
+  Outil open source (Ionic) qui emballe ton app web dans une <strong>WebView native</strong> iOS/Android. Ton jeu tourne dans un mini-navigateur embarqué. Ajoute ~3 Mo.
+</div>
+
+<!-- PODIUM -->
+<div class="divider"><div class="divider-line"></div><div class="divider-label">// Classement pour ton besoin</div><div class="divider-line"></div></div>
+<div class="podium">
+
+  <div class="pod p1">
+    <div class="pod-rank">#1</div>
+    <div class="pod-head"><div class="pod-name">🥇 Defold 1.12.3</div><div class="pod-tag">RECOMMANDÉ</div></div>
+    <div class="pod-why">Le plus adapté. APK 3-5 Mo natif sans rien toucher. Box2D intégré (~3 000 obj collision). Export natif mobile + web. Lua simple.</div>
+    <div class="pod-scores">
+      <div class="ps"><div class="ps-label">Poids APK</div><div class="ps-bar-bg"><div class="ps-bar" style="width:98%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">3-5 Mo natif · 1.14 Mo web</div></div>
+      <div class="ps"><div class="ps-label">Physique</div><div class="ps-bar-bg"><div class="ps-bar" style="width:80%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">Box2D intégré · ~3 000 obj</div></div>
+      <div class="ps"><div class="ps-label">Particules</div><div class="ps-bar-bg"><div class="ps-bar" style="width:75%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">GPU particles</div></div>
+      <div class="ps"><div class="ps-label">Facilité</div><div class="ps-bar-bg"><div class="ps-bar" style="width:88%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">Lua · éditeur intégré</div></div>
+      <div class="ps"><div class="ps-label">Mobile + Web</div><div class="ps-bar-bg"><div class="ps-bar" style="width:95%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">Natif iOS/Android/HTML5</div></div>
+      <div class="ps"><div class="ps-label">Godot web</div><div class="ps-bar-bg"><div class="ps-bar" style="width:95%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">Fonctionne partout, Safari inclus</div></div>
+    </div>
+  </div>
+
+  <div class="pod p2">
+    <div class="pod-rank">#2</div>
+    <div class="pod-head"><div class="pod-name">🥈 Godot 4.6.2</div><div class="pod-tag">PLUS COMPLET</div></div>
+    <div class="pod-why">Le moteur 2D le plus riche. Rapier = 7 800 obj physiques. 100k+ particules. Mais APK ~30 Mo standard (~10 Mo custom, recompilation C++ requise). Web OK sauf Safari/iOS.</div>
+    <div class="pod-scores">
+      <div class="ps"><div class="ps-label">Poids APK</div><div class="ps-bar-bg"><div class="ps-bar" style="width:45%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div><div class="ps-val">~30 Mo std · ~10 Mo custom</div></div>
+      <div class="ps"><div class="ps-label">Physique</div><div class="ps-bar-bg"><div class="ps-bar" style="width:95%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">Natif 2 900 · Rapier 7 800</div></div>
+      <div class="ps"><div class="ps-label">Particules</div><div class="ps-bar-bg"><div class="ps-bar" style="width:92%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">GPU · 100k+ particules</div></div>
+      <div class="ps"><div class="ps-label">Facilité</div><div class="ps-bar-bg"><div class="ps-bar" style="width:75%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div><div class="ps-val">GDScript · mais recompil pour optim</div></div>
+      <div class="ps"><div class="ps-label">Mobile + Web</div><div class="ps-bar-bg"><div class="ps-bar" style="width:60%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div><div class="ps-val">Natif mobile · web ⚠ pas iOS</div></div>
+      <div class="ps"><div class="ps-label">Optimisation APK</div><div class="ps-bar-bg"><div class="ps-bar" style="width:40%;background:var(--o)"></div></div><div class="ps-val">Pas de strip dans l'UI, recompil C++</div></div>
+    </div>
+  </div>
+
+  <div class="pod p3">
+    <div class="pod-rank">#3</div>
+    <div class="pod-head"><div class="pod-name">🥉 Phaser 4.0.0</div><div class="pod-tag">WEB PUR</div></div>
+    <div class="pod-why">Roi du web pur. bitECS. APK léger (~4 Mo via Capacitor) mais WebView = pas natif. Avec physique Arcade : ~4 500 sprites seulement.</div>
+    <div class="pod-scores">
+      <div class="ps"><div class="ps-label">Poids APK</div><div class="ps-bar-bg"><div class="ps-bar" style="width:85%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">~4-5 Mo (Capacitor)</div></div>
+      <div class="ps"><div class="ps-label">Physique</div><div class="ps-bar-bg"><div class="ps-bar" style="width:55%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div><div class="ps-val">Arcade (AABB) · Matter.js</div></div>
+      <div class="ps"><div class="ps-label">Particules</div><div class="ps-bar-bg"><div class="ps-bar" style="width:88%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">GPU particles · excellent</div></div>
+      <div class="ps"><div class="ps-label">Facilité</div><div class="ps-bar-bg"><div class="ps-bar" style="width:80%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div><div class="ps-val">JS/TS · docs riches</div></div>
+      <div class="ps"><div class="ps-label">Sprites + collision</div><div class="ps-bar-bg"><div class="ps-bar" style="width:28%;background:var(--o)"></div></div><div class="ps-val">~4 500 (Arcade mobile)</div></div>
+      <div class="ps"><div class="ps-label">Mobile</div><div class="ps-bar-bg"><div class="ps-bar" style="width:50%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div><div class="ps-val">WebView uniquement (Capacitor)</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASER ECS -->
+<div class="divider"><div class="divider-line"></div><div class="divider-label">// Phaser 4.0 — 2 modes (bitECS)</div><div class="divider-line"></div></div>
+<div class="distinction">
+  <div class="dist-card gpu">
+    <div class="dist-head"><div class="dist-title">SpriteGPULayer</div><div class="dist-count" style="color:var(--g)">1 000 000+</div></div>
+    <div class="dist-body">GPU uniquement. 1 draw call. Pas de physique, pas de collision, pas d'input.</div>
+    <div class="dist-tags"><div class="dtag ok">✔ 100x plus rapide</div><div class="dtag ko">✘ PAS de physique</div><div class="dtag ko">✘ PAS de collision</div></div>
+  </div>
+  <div class="dist-card phys">
+    <div class="dist-head"><div class="dist-title">Arcade Sprites</div><div class="dist-count" style="color:var(--o)">~4 500</div></div>
+    <div class="dist-body">Body physique AABB/cercle. CPU-bound sur mobile.</div>
+    <div class="dist-tags"><div class="dtag ok">✔ Physique + collision</div><div class="dtag ko">✘ ~4 500 max mobile</div></div>
+  </div>
+</div>
+
+<!-- PHYSIQUE -->
+<div class="divider"><div class="divider-line"></div><div class="divider-label">// Objets collision simultanée @ 30 FPS</div><div class="divider-line"></div></div>
+<div class="cards">
+  <div class="card">
+    <div class="card-head"><div class="cn">Rapier 2D<span class="cn-sub">(Godot ext.)</span></div><div class="cp">7 800</div></div>
+    <div class="card-body">
+      <div><div class="fl">Techno</div><div class="fv">Rust SIMD + Parallel</div></div>
+      <div><div class="fl">Source</div><div class="fv" style="font-size:10px">godot.rapier.rs ✅</div></div>
+      <div class="full"><div class="bar-bg"><div class="bar" style="width:100%;background:linear-gradient(90deg,var(--g),var(--b))"></div></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="cn">Phaser Arcade</div><div class="cp mid">~4 500</div></div>
+    <div class="card-body">
+      <div><div class="fl">Techno</div><div class="fv">JS AABB + bitECS</div></div>
+      <div><div class="fl">Source</div><div class="fv" style="font-size:10px">Rapport (non vérifié ⚠)</div></div>
+      <div class="full"><div class="bar-bg"><div class="bar" style="width:58%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="cn">Box2D (Defold)</div><div class="cp mid">~3 000</div></div>
+    <div class="card-body">
+      <div><div class="fl">Techno</div><div class="fv">C++ natif</div></div>
+      <div><div class="fl">Source</div><div class="fv" style="font-size:10px">godot.rapier.rs (v2.4) ✅</div></div>
+      <div class="full"><div class="bar-bg"><div class="bar" style="width:38%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="cn">Godot Physics 2D</div><div class="cp mid">~2 900</div></div>
+    <div class="card-body">
+      <div><div class="fl">Techno</div><div class="fv">C++ interne</div></div>
+      <div><div class="fl">Source</div><div class="fv" style="font-size:10px">godot.rapier.rs ✅</div></div>
+      <div class="full"><div class="bar-bg"><div class="bar" style="width:37%;background:linear-gradient(90deg,var(--gold),var(--o))"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <em>APK Godot</em> — standard arm64 ~30 Mo (APKMirror). Custom build 2D stripped : 40 Mo pour 4 archis soit ~10 Mo/archi (GitHub GameSiProjects). <strong>Recompilation C++ obligatoire</strong>, pas de strip depuis l'UI.<br>
+  <em>APK Defold</em> — 3-5 Mo natif directement depuis l'éditeur (Grokipedia, docs).<br>
+  <em>Phaser 4.0.0</em> — release 10 avril 2026. GPU Layer 1M+ SANS physique. Arcade ~4 500 (rapport, non vérifié).<br>
+  <em>Capacitor</em> — ~3 Mo overhead. WebView ≠ natif.<br>
+  <em>Godot web</em> — single-thread depuis 4.3 (plus besoin COOP/COEP). Pas Safari/iOS.<br>
+  <em>Physique</em> — source officielle : godot.rapier.rs · MacBook M1 Air, rendu off, Godot 4.3.
+</div>
+
+<!-- SOURCES -->
+<div class="divider" style="margin-top:28px"><div class="divider-line"></div><div class="divider-label">// Sources primaires</div><div class="divider-line"></div></div>
+
+<div style="max-width:700px;margin:0 auto;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);line-height:2.2">
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="color:var(--g);font-size:10px;letter-spacing:2px;margin-bottom:8px">TAILLES APK / BUILD</div>
+    <div><span style="color:#fff">①</span> Godot APK standard (APKMirror) — <a href="https://www.apkmirror.com/apk/godot-foundation/godot-engine-4-2/godot-engine-4-4-4-0-stable-release/godot-engine-4-4-4-0-stable-android-apk-download/" style="color:var(--b);text-decoration:none">apkmirror.com/godot-4.4</a> — Base APK 12.94 Mo, arm64 split 134 Mo</div>
+    <div><span style="color:#fff">②</span> Godot custom build Android 40 Mo (GitHub) — <a href="https://github.com/GameSiProjects/OptimizeGodotLibSizeGuide" style="color:var(--b);text-decoration:none">github.com/GameSiProjects/OptimizeGodotLibSizeGuide</a></div>
+    <div><span style="color:#fff">③</span> Godot 93→6.4 Mo (Windows, forum) — <a href="https://forum.godotengine.org/t/how-to-minify-godots-build-size-93mb-6-4mb-exe/104965" style="color:var(--b);text-decoration:none">forum.godotengine.org/t/104965</a></div>
+    <div><span style="color:#fff">④</span> Godot APK 114 Mo projet vide (forum) — <a href="https://forum.godotengine.org/t/absurd-file-size-increase-when-my-project-is-exported-to-apk/130000" style="color:var(--b);text-decoration:none">forum.godotengine.org/t/130000</a></div>
+    <div><span style="color:#fff">⑤</span> Godot 3 vs 4 taille mobile (forum) — <a href="https://forum.godotengine.org/t/does-anyone-use-godot-4-for-mobile-games/43673" style="color:var(--b);text-decoration:none">forum.godotengine.org/t/43673</a> — Godot 3: 12 Mo, Godot 4: ~20 Mo</div>
+    <div><span style="color:#fff">⑥</span> Defold runtime 1.14 Mo (Grokipedia) — <a href="https://grokipedia.com/page/Defold" style="color:var(--b);text-decoration:none">grokipedia.com/page/Defold</a></div>
+    <div><span style="color:#fff">⑦</span> Defold builds 4-6 Mo mobile (tutorial) — <a href="https://generalistprogrammer.com/tutorials/defold-2d-game-complete-cross-platform-tutorial" style="color:var(--b);text-decoration:none">generalistprogrammer.com/defold-tutorial</a></div>
+    <div><span style="color:#fff">⑧</span> Capacitor +3 Mo overhead (forum Ionic) — <a href="https://forum.ionicframework.com/t/huge-app-size-with-capacitor-compared-to-cordova/171705" style="color:var(--b);text-decoration:none">forum.ionicframework.com/t/171705</a></div>
+  </div>
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="color:var(--g);font-size:10px;letter-spacing:2px;margin-bottom:8px">PHYSIQUE & BENCHMARKS</div>
+    <div><span style="color:#fff">⑨</span> Rapier 2D benchmark officiel — <a href="https://godot.rapier.rs/docs/documentation/performance/" style="color:var(--b);text-decoration:none">godot.rapier.rs/docs/performance</a> — 7 800 / 5 000 / 2 900 / 3 000 objets</div>
+    <div><span style="color:#fff">⑩</span> Defold bunnymark (PlayCanvas forum) — <a href="https://forum.playcanvas.com/t/bunnymark-benchmark/7361" style="color:var(--b);text-decoration:none">forum.playcanvas.com/t/7361</a> — Natif 27k, HTML5 7.5k @ 30fps</div>
+    <div><span style="color:#fff">⑪</span> Godot bunnymark (GitHub) — <a href="https://github.com/jotson/godot-bunnymark" style="color:var(--b);text-decoration:none">github.com/jotson/godot-bunnymark</a> — ~6 000 @ 60fps desktop</div>
+    <div><span style="color:#fff">⑫</span> Godot benchmarks officiels — <a href="https://benchmarks.godotengine.org/" style="color:var(--b);text-decoration:none">benchmarks.godotengine.org</a></div>
+  </div>
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="color:var(--g);font-size:10px;letter-spacing:2px;margin-bottom:8px">PHASER 4</div>
+    <div><span style="color:#fff">⑬</span> Phaser 4.0.0 release (officiel) — <a href="https://phaser.io/download/release/v4.0.0" style="color:var(--b);text-decoration:none">phaser.io/download/release/v4.0.0</a> — 10 avril 2026</div>
+    <div><span style="color:#fff">⑭</span> SpriteGPULayer : pas de physique (officiel) — <a href="https://phaser.io/news/2025/01/phaser-v4-beta-5-released" style="color:var(--b);text-decoration:none">phaser.io/news/2025/01/beta-5</a></div>
+    <div><span style="color:#fff">⑮</span> Phaser 4 changelog GitHub — <a href="https://github.com/phaserjs/phaser/blob/master/changelog/v4/4.0/CHANGELOG-v4.0.0.md" style="color:var(--b);text-decoration:none">github.com/phaserjs/phaser/changelog</a></div>
+    <div><span style="color:#fff">⑯</span> bitECS dans Phaser (devlog 260) — <a href="https://phaser.io/devlogs/260" style="color:var(--b);text-decoration:none">phaser.io/devlogs/260</a></div>
+  </div>
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="color:var(--g);font-size:10px;letter-spacing:2px;margin-bottom:8px">VERSIONS & RELEASES</div>
+    <div><span style="color:#fff">⑰</span> Godot 4.6.2 release — <a href="https://github.com/godotengine/godot/releases" style="color:var(--b);text-decoration:none">github.com/godotengine/godot/releases</a> — 1er avril 2026</div>
+    <div><span style="color:#fff">⑱</span> Godot 4.6 release notes — <a href="https://godotengine.org/releases/4.6/" style="color:var(--b);text-decoration:none">godotengine.org/releases/4.6</a></div>
+    <div><span style="color:#fff">⑲</span> Defold 1.12.3 release — <a href="https://github.com/defold/defold/releases" style="color:var(--b);text-decoration:none">github.com/defold/defold/releases</a> — 31 mars 2026</div>
+    <div><span style="color:#fff">⑳</span> Unity 6.4 — <a href="https://www.cgchannel.com/2026/03/unity-releases-unity-6-4-and-unity-studio/" style="color:var(--b);text-decoration:none">cgchannel.com/unity-6-4</a> — mars 2026</div>
+  </div>
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="color:var(--g);font-size:10px;letter-spacing:2px;margin-bottom:8px">GODOT WEB EXPORT</div>
+    <div><span style="color:#fff">㉑</span> Single-thread web export (Godot 4.3) — <a href="https://godotengine.org/article/progress-report-web-export-in-4-3/" style="color:var(--b);text-decoration:none">godotengine.org/article/web-export-4-3</a></div>
+    <div><span style="color:#fff">㉒</span> Pas de strip UI, recompilation requise (proposal) — <a href="https://github.com/godotengine/godot-proposals/discussions/12200" style="color:var(--b);text-decoration:none">github.com/godot-proposals/12200</a></div>
+    <div><span style="color:#fff">㉓</span> Capacitor : qu'est-ce que c'est — <a href="https://capacitorjs.com/" style="color:var(--b);text-decoration:none">capacitorjs.com</a></div>
+  </div>
+
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px">
+    <div style="color:var(--o);font-size:10px;letter-spacing:2px;margin-bottom:8px">⚠ DONNÉES NON VÉRIFIÉES</div>
+    <div><span style="color:var(--o)">▸</span> "85 000 sprites Godot/Defold @ 60fps mobile" — aucun benchmark primaire trouvé</div>
+    <div><span style="color:var(--o)">▸</span> "4 500 sprites Phaser Arcade mobile" — chiffre du rapport source, pas de benchmark primaire</div>
+    <div><span style="color:var(--o)">▸</span> "65 000 sprites Unity DOTS" — pas de benchmark primaire trouvé</div>
+    <div><span style="color:var(--o)">▸</span> "760% gain CPU Phaser 4" — pas dans les sources officielles Phaser</div>
+    <div><span style="color:var(--o)">▸</span> "Box2D v3.0 à 6 500 objets" — faux, officiel = 3 000 (v2.4)</div>
+  </div>
+
+</div>
+
+</body>
+</html>

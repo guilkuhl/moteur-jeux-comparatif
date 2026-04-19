@@ -1,0 +1,26 @@
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 1.0
+friction: 0.0
+restitution: 1.0
+group: "ball"
+mask: "wall"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_SPHERE
+    position {
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    index: 0
+    count: 1
+  }
+  data: 8.0
+}
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: false
+bullet: false

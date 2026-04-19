@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phaser 4 — Benchmark Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 24px; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 32px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1400px; margin: 0 auto; }
+  .card { background: #1a1a2e; border-radius: 12px; padding: 24px; border: 1px solid #2a2a4a; }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 { font-size: 18px; margin-bottom: 16px; color: #8b9cf7; }
+  .card h3 { font-size: 14px; margin-bottom: 12px; color: #aaa; }
+  canvas { width: 100% !important; max-height: 400px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #2a2a4a; font-size: 14px; }
+  th { color: #8b9cf7; font-weight: 600; }
+  td { color: #ccc; }
+  .highlight { color: #4db3ff; font-weight: bold; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-green { background: #1a4a2e; color: #44ff88; }
+  .badge-blue { background: #1a2e4a; color: #44aaff; }
+  .badge-yellow { background: #4a4a1a; color: #ffdd44; }
+  .badge-purple { background: #2e1a4a; color: #aa66ff; }
+  .badge-red { background: #4a1a1a; color: #ff6644; }
+  .stat-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat-box { flex: 1; min-width: 120px; background: #12122a; border-radius: 8px; padding: 16px; text-align: center; }
+  .stat-box .value { font-size: 28px; font-weight: bold; color: #4db3ff; }
+  .stat-box .label { font-size: 12px; color: #888; margin-top: 4px; }
+  .note { font-size: 12px; color: #666; margin-top: 8px; font-style: italic; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Phaser 4.0.0 — Benchmark Dashboard</h1>
+<p class="subtitle">Sprites avec physique, collision et rendu GPU — 18 avril 2026 — Chrome (Cowork)</p>
+
+<!-- Stats résumé -->
+<div class="grid">
+<div class="card full">
+  <h2>Résumé des résultats</h2>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="value">8 950</div>
+      <div class="label">Standard (baseline)</div>
+    </div>
+    <div class="stat-box">
+      <div class="value">7 350</div>
+      <div class="label">Config optimisée</div>
+    </div>
+    <div class="stat-box">
+      <div class="value">13 250</div>
+      <div class="label">Sans collision b↔b</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" style="color:#44ff88">2 790 000+</div>
+      <div class="label">GPU Layer (statique)</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" style="color:#aa66ff">480 000</div>
+      <div class="label">GPU Layer (animé)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Graphique 1: Comparaison des 3 benchmarks standard -->
+<div class="card full">
+  <h2>Courbe FPS / Sprites — Benchmarks standard (avec physique)</h2>
+  <canvas id="chartStandard"></canvas>
+</div>
+
+<!-- Graphique 2: GPU Layer -->
+<div class="card full">
+  <h2>Courbe FPS / Sprites — SpriteGPULayer</h2>
+  <canvas id="chartGPU"></canvas>
+</div>
+
+<!-- Graphique 3: Barre comparative -->
+<div class="card">
+  <h2>Sprites max par configuration</h2>
+  <canvas id="chartBar"></canvas>
+</div>
+
+<!-- Graphique 4: ratio -->
+<div class="card">
+  <h2>Multiplicateur vs baseline</h2>
+  <canvas id="chartMultiplier"></canvas>
+</div>
+
+<!-- Tableau détaillé -->
+<div class="card full">
+  <h2>Tableau comparatif détaillé</h2>
+  <table>
+    <tr>
+      <th>Benchmark</th>
+      <th>Physique</th>
+      <th>Collision b↔b</th>
+      <th>Animation GPU</th>
+      <th>FPS stable</th>
+      <th>Sprites max</th>
+      <th>FPS final</th>
+      <th>Ratio vs baseline</th>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Standard (baseline)</span></td>
+      <td>Arcade</td><td>Oui</td><td>Non</td>
+      <td>≤ 5 000</td><td class="highlight">8 950</td><td>17</td><td>1×</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-yellow">Config optimisée</span></td>
+      <td>Arcade</td><td>Oui</td><td>Non</td>
+      <td>≤ 5 400</td><td class="highlight">7 350</td><td>19</td><td>0.82×</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-green">Sans collision b↔b</span></td>
+      <td>Arcade</td><td>Non</td><td>Non</td>
+      <td>≤ 9 500</td><td class="highlight">13 250</td><td>18</td><td>1.48×</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-purple">GPU Layer (statique)</span></td>
+      <td>Non</td><td>Non</td><td>Non</td>
+      <td>≤ 310 000</td><td class="highlight">2 790 000+</td><td>39</td><td>312×</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-red">GPU Layer (animé)</span></td>
+      <td>Non</td><td>Non</td><td>Oui (x, y, alpha yoyo)</td>
+      <td>≤ 160 000</td><td class="highlight">480 000</td><td>19</td><td>54×</td>
+    </tr>
+  </table>
+  <p class="note">Tous les tests : sprite 4-6px, résolution 960×1080, Chrome Cowork, stop auto à FPS &lt; 20.</p>
+</div>
+
+<!-- Analyse -->
+<div class="card full">
+  <h2>Conclusions</h2>
+  <table>
+    <tr><th style="width:30%">Constat</th><th>Détail</th></tr>
+    <tr>
+      <td>Le goulot est la collision, pas le rendu</td>
+      <td>Retirer la collision balle↔balle (+48% de sprites) et comparer au GPU Layer (312× plus) prouve que Arcade Physics O(n²) est le facteur limitant principal.</td>
+    </tr>
+    <tr>
+      <td>La config WebGL avancée n'aide pas</td>
+      <td>batchSize=16384, powerPreference=high-performance n'apportent aucun gain mesurable quand la physique domine. Phaser 4 est déjà bien configuré par défaut.</td>
+    </tr>
+    <tr>
+      <td>SpriteGPULayer est extraordinaire pour le décor</td>
+      <td>2,8 millions de sprites statiques à 39 FPS, ou 480K animés (aller-retour) à 19 FPS. Idéal pour fonds, particules, décors animés.</td>
+    </tr>
+    <tr>
+      <td>Deux mondes séparés</td>
+      <td>Pour les entités interactives (avec physique/collision) : ~9K sprites max. Pour le décor (GPU Layer) : ~500K-2.8M. Un jeu 2D combinera les deux.</td>
+    </tr>
+  </table>
+</div>
+</div>
+
+<script>
+// Data
+const baseline = {data:[{s:200,f:60},{s:400,f:60},{s:600,f:60},{s:800,f:60},{s:1000,f:60},{s:1200,f:60},{s:1400,f:60},{s:1600,f:60},{s:1800,f:60},{s:2000,f:60},{s:2200,f:60},{s:2400,f:60},{s:2600,f:60},{s:2800,f:60},{s:3000,f:60},{s:3200,f:60},{s:3400,f:60},{s:3600,f:60},{s:3800,f:60},{s:4000,f:60},{s:4200,f:60},{s:4400,f:60},{s:4600,f:60},{s:4800,f:60},{s:5000,f:60},{s:5200,f:55},{s:5400,f:55},{s:5600,f:55},{s:5800,f:48},{s:6000,f:48},{s:6200,f:39},{s:6400,f:39},{s:6600,f:39},{s:6800,f:39},{s:7000,f:38},{s:7200,f:38},{s:7400,f:37},{s:7600,f:37},{s:7800,f:37},{s:8000,f:35},{s:8200,f:35},{s:8400,f:32},{s:8600,f:32},{s:8800,f:21},{s:8950,f:17}]};
+
+const optimized = {data:[{s:200,f:60},{s:400,f:60},{s:600,f:60},{s:800,f:60},{s:1000,f:60},{s:1200,f:60},{s:1400,f:60},{s:1600,f:60},{s:1800,f:60},{s:2000,f:60},{s:2200,f:60},{s:2400,f:60},{s:2600,f:60},{s:2800,f:60},{s:3000,f:60},{s:3200,f:60},{s:3400,f:60},{s:3600,f:60},{s:3800,f:60},{s:4000,f:60},{s:4200,f:60},{s:4400,f:60},{s:4600,f:60},{s:4800,f:60},{s:5000,f:60},{s:5200,f:60},{s:5400,f:60},{s:5600,f:59},{s:5800,f:59},{s:6000,f:59},{s:6200,f:53},{s:6400,f:53},{s:6600,f:45},{s:6800,f:36},{s:7000,f:36},{s:7200,f:23},{s:7350,f:19}]};
+
+const noCollision = {data:[{s:500,f:60},{s:1000,f:60},{s:1500,f:60},{s:2000,f:60},{s:2500,f:60},{s:3000,f:60},{s:3500,f:60},{s:4000,f:60},{s:4500,f:60},{s:5000,f:60},{s:5500,f:60},{s:6000,f:60},{s:6500,f:60},{s:7000,f:60},{s:7500,f:60},{s:8000,f:60},{s:8500,f:60},{s:9000,f:60},{s:9500,f:60},{s:10000,f:58},{s:10500,f:54},{s:11000,f:49},{s:11500,f:45},{s:12000,f:40},{s:12500,f:30},{s:13000,f:21},{s:13250,f:18}]};
+
+const gpuStatic = {data:[{s:10000,f:60},{s:110000,f:60},{s:210000,f:60},{s:310000,f:60},{s:410000,f:55},{s:510000,f:46},{s:610000,f:41},{s:710000,f:39},{s:810000,f:39},{s:910000,f:39},{s:1010000,f:38},{s:1110000,f:38},{s:1210000,f:38},{s:1310000,f:38},{s:1410000,f:38},{s:1510000,f:38},{s:1610000,f:39},{s:1710000,f:39},{s:1810000,f:39},{s:1910000,f:39},{s:2010000,f:39},{s:2110000,f:39},{s:2210000,f:39},{s:2310000,f:39},{s:2410000,f:39},{s:2510000,f:38},{s:2610000,f:38},{s:2710000,f:39},{s:2790000,f:39}]};
+
+const gpuAnimated = {data:[{s:20000,f:59},{s:40000,f:55},{s:60000,f:53},{s:80000,f:52},{s:100000,f:54},{s:120000,f:55},{s:140000,f:56},{s:160000,f:56},{s:180000,f:52},{s:200000,f:49},{s:220000,f:46},{s:240000,f:43},{s:260000,f:40},{s:280000,f:37},{s:300000,f:33},{s:320000,f:31},{s:340000,f:29},{s:360000,f:27},{s:380000,f:26},{s:400000,f:24},{s:420000,f:23},{s:440000,f:21},{s:460000,f:20},{s:480000,f:19}]};
+
+const chartDefaults = {
+  responsive: true,
+  plugins: { legend: { labels: { color: '#ccc', font: { size: 13 } } } },
+  scales: {
+    x: { ticks: { color: '#888' }, grid: { color: '#222' }, title: { display: true, text: 'Sprites', color: '#888' } },
+    y: { ticks: { color: '#888' }, grid: { color: '#222' }, title: { display: true, text: 'FPS', color: '#888' }, min: 0, max: 65 }
+  }
+};
+
+// Chart 1: Standard benchmarks
+new Chart(document.getElementById('chartStandard'), {
+  type: 'line',
+  data: {
+    datasets: [
+      { label: 'Standard (baseline)', data: baseline.data.map(d => ({x: d.s, y: d.f})), borderColor: '#4488ff', backgroundColor: '#4488ff22', borderWidth: 2, pointRadius: 1, tension: 0.3 },
+      { label: 'Config optimisée', data: optimized.data.map(d => ({x: d.s, y: d.f})), borderColor: '#ffdd44', backgroundColor: '#ffdd4422', borderWidth: 2, pointRadius: 1, tension: 0.3 },
+      { label: 'Sans collision b↔b', data: noCollision.data.map(d => ({x: d.s, y: d.f})), borderColor: '#44ff88', backgroundColor: '#44ff8822', borderWidth: 2, pointRadius: 1, tension: 0.3 },
+    ]
+  },
+  options: { ...chartDefaults, scales: { ...chartDefaults.scales, x: { ...chartDefaults.scales.x, type: 'linear', ticks: { color: '#888', callback: v => v >= 1000 ? (v/1000)+'K' : v } } },
+    plugins: { ...chartDefaults.plugins, annotation: { annotations: { line1: { type: 'line', yMin: 20, yMax: 20, borderColor: '#ff4444', borderWidth: 1, borderDash: [5,5], label: { display: true, content: 'FPS = 20 (stop)', color: '#ff4444' } } } } }
+  }
+});
+
+// Chart 2: GPU Layer
+new Chart(document.getElementById('chartGPU'), {
+  type: 'line',
+  data: {
+    datasets: [
+      { label: 'GPU Layer (statique)', data: gpuStatic.data.map(d => ({x: d.s, y: d.f})), borderColor: '#aa66ff', backgroundColor: '#aa66ff22', borderWidth: 2, pointRadius: 1, tension: 0.3 },
+      { label: 'GPU Layer (animé x/y/alpha)', data: gpuAnimated.data.map(d => ({x: d.s, y: d.f})), borderColor: '#ff6644', backgroundColor: '#ff664422', borderWidth: 2, pointRadius: 1, tension: 0.3 },
+    ]
+  },
+  options: { ...chartDefaults, scales: { ...chartDefaults.scales, x: { ...chartDefaults.scales.x, type: 'linear', ticks: { color: '#888', callback: v => v >= 1000000 ? (v/1000000)+'M' : v >= 1000 ? (v/1000)+'K' : v } } } }
+});
+
+// Chart 3: Bar chart
+new Chart(document.getElementById('chartBar'), {
+  type: 'bar',
+  data: {
+    labels: ['Standard', 'Config opt.', 'Sans coll.', 'GPU animé', 'GPU statique'],
+    datasets: [{
+      label: 'Sprites max',
+      data: [8950, 7350, 13250, 480000, 2790000],
+      backgroundColor: ['#4488ff', '#ffdd44', '#44ff88', '#ff6644', '#aa66ff'],
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#ccc' }, grid: { display: false } },
+      y: { type: 'logarithmic', ticks: { color: '#888', callback: v => v >= 1000000 ? (v/1000000)+'M' : v >= 1000 ? (v/1000)+'K' : v }, grid: { color: '#222' }, title: { display: true, text: 'Sprites (échelle log)', color: '#888' } }
+    }
+  }
+});
+
+// Chart 4: Multiplier
+new Chart(document.getElementById('chartMultiplier'), {
+  type: 'bar',
+  data: {
+    labels: ['Config opt.', 'Sans collision', 'GPU animé', 'GPU statique'],
+    datasets: [{
+      label: '× vs baseline (8 950)',
+      data: [0.82, 1.48, 53.6, 311.7],
+      backgroundColor: ['#ffdd44', '#44ff88', '#ff6644', '#aa66ff'],
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { type: 'logarithmic', ticks: { color: '#888', callback: v => v + '×' }, grid: { color: '#222' }, title: { display: true, text: 'Multiplicateur (échelle log)', color: '#888' } },
+      y: { ticks: { color: '#ccc' }, grid: { display: false } }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

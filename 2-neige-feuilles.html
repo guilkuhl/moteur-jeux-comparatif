@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — Neige & Feuilles Mortes</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; transition: background 1.5s ease; }
+    #info {
+      position: fixed; top: 16px; left: 16px;
+      font-family: monospace; font-size: 13px; line-height: 2;
+      pointer-events: none; transition: color 1s;
+    }
+    #info b { font-weight: bold; }
+    #toggle {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.7); padding: 10px 32px; border-radius: 999px;
+      cursor: pointer; font-family: monospace; font-size: 13px; letter-spacing: 1px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    #toggle:hover { background: rgba(255,255,255,0.16); }
+    a.back {
+      position: fixed; top: 16px; right: 16px;
+      font-family: monospace; font-size: 12px;
+      text-decoration: none; color: rgba(255,255,255,0.3);
+    }
+    a.back:hover { color: #fff; }
+  </style>
+</head>
+<body>
+<div id="info"><b id="mode-icon">🌨</b> Mode : <b id="mode-lbl">NEIGE</b> — <b id="count">5000</b> sprites GPU</div>
+<button id="toggle">🌨 NEIGE → 🍂 FEUILLES</button>
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const NUM = 5000;
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+const app = new PIXI.Application({ width: W, height: H, backgroundAlpha: 0 });
+app.view.style.position = 'fixed';
+app.view.style.top = '0';
+app.view.style.left = '0';
+document.body.appendChild(app.view);
+
+// Fond (géré en CSS pour la transition douce)
+const SNOW_BG  = '#0d1b2a';
+const LEAF_BG  = '#1a1005';
+document.body.style.background = SNOW_BG;
+
+// ─── SpriteGPULayer ───────────────────────────────────────────────────────────
+const gpuLayer = new PIXI.ParticleContainer(NUM, {
+  scale: true, position: true, rotation: true, alpha: true, tint: true,
+});
+app.stage.addChild(gpuLayer);
+
+// ─── Textures ─────────────────────────────────────────────────────────────────
+function makeSnow() {
+  const g = new PIXI.Graphics();
+  // Flocon avec éclat de lumière
+  g.beginFill(0xffffff, 1);
+  g.drawCircle(0, 0, 5);
+  g.endFill();
+  g.beginFill(0xffffff, 0.3);
+  g.drawCircle(-1, -1, 7);
+  g.endFill();
+  return app.renderer.generateTexture(g);
+}
+function makeLeaf() {
+  const g = new PIXI.Graphics();
+  g.beginFill(0xffffff);
+  // Forme de feuille elliptique avec nervure
+  g.drawEllipse(0, 0, 9, 5);
+  g.endFill();
+  return app.renderer.generateTexture(g);
+}
+
+const SNOW_TEX = makeSnow();
+const LEAF_TEX = makeLeaf();
+
+const LEAF_COLORS = [0xcc4400, 0xe86e00, 0xf5a800, 0xaa3300, 0xc05500, 0x7a2200, 0xdd6600, 0xb94100];
+const SNOW_TINTS  = [0xffffff, 0xe8f0ff, 0xddeeff, 0xccddff];
+
+// ─── Données des particules ───────────────────────────────────────────────────
+let isSnow = true;
+const sprites = new Array(NUM);
+const pdata   = new Array(NUM);
+
+for (let i = 0; i < NUM; i++) {
+  const sp = new PIXI.Sprite(SNOW_TEX);
+  sp.anchor.set(0.5);
+  sp.x = Math.random() * W;
+  sp.y = Math.random() * H;
+  const sz = 0.2 + Math.random() * 1.1;
+  sp.scale.set(sz);
+  sp.alpha = 0.3 + Math.random() * 0.7;
+  sp.tint  = SNOW_TINTS[Math.floor(Math.random() * SNOW_TINTS.length)];
+  gpuLayer.addChild(sp);
+  sprites[i] = sp;
+
+  pdata[i] = {
+    x: sp.x, y: sp.y,
+    size: sz,
+    speed: sz * 0.9 + 0.25,           // particules grandes = plus rapides (profondeur)
+    drift: (Math.random() - 0.5) * 0.4,
+    windPhase: Math.random() * Math.PI * 2,
+    wobble: 0.08 + Math.random() * 0.25,
+    rotSpeed: (Math.random() - 0.5) * 0.028,
+    swingAngle: Math.random() * Math.PI * 2,
+    swingSpeed: 0.01 + Math.random() * 0.03,
+  };
+}
+
+// ─── Transition NEIGE ↔ FEUILLES ─────────────────────────────────────────────
+function switchMode() {
+  isSnow = !isSnow;
+  document.getElementById('mode-lbl').textContent  = isSnow ? 'NEIGE' : 'FEUILLES';
+  document.getElementById('mode-icon').textContent = isSnow ? '🌨' : '🍂';
+  document.getElementById('toggle').textContent    = isSnow ? '🌨 NEIGE → 🍂 FEUILLES' : '🍂 FEUILLES → 🌨 NEIGE';
+  document.body.style.background = isSnow ? SNOW_BG : LEAF_BG;
+  document.getElementById('info').style.color = isSnow ? 'rgba(180,220,255,0.7)' : 'rgba(255,200,100,0.7)';
+
+  for (let i = 0; i < NUM; i++) {
+    const sp = sprites[i];
+    if (isSnow) {
+      sp.texture = SNOW_TEX;
+      sp.tint    = SNOW_TINTS[Math.floor(Math.random() * SNOW_TINTS.length)];
+      sp.alpha   = 0.3 + Math.random() * 0.7;
+    } else {
+      sp.texture = LEAF_TEX;
+      sp.tint    = LEAF_COLORS[Math.floor(Math.random() * LEAF_COLORS.length)];
+      sp.alpha   = 0.6 + Math.random() * 0.4;
+    }
+  }
+}
+document.getElementById('toggle').addEventListener('click', switchMode);
+
+// ─── Boucle principale ────────────────────────────────────────────────────────
+let time = 0;
+
+app.ticker.add((delta) => {
+  time += 0.008;
+  // Vent global : oscillation lente composée de 2 fréquences = effet naturel
+  const gWind = Math.sin(time) * 1.8 + Math.sin(time * 2.1) * 0.6 + Math.sin(time * 0.4) * 1.2;
+
+  for (let i = 0; i < NUM; i++) {
+    const d  = pdata[i];
+    const sp = sprites[i];
+
+    if (isSnow) {
+      const localDrift = Math.sin(time * 1.3 + d.windPhase) * d.wobble;
+      d.x += (gWind * 0.25 + localDrift + d.drift) * d.size;
+      d.y += d.speed * 0.55 * delta;
+      sp.rotation += d.rotSpeed;
+    } else {
+      // Feuilles : oscillation en V, chute plus erratique
+      d.swingAngle += d.swingSpeed;
+      const swing = Math.sin(d.swingAngle) * d.wobble * 3.5;
+      d.x += swing + gWind * 0.7 * d.size + d.drift;
+      d.y += d.speed * 0.75 * delta;
+      sp.rotation += d.rotSpeed * 3;
+    }
+
+    sp.x = d.x;
+    sp.y = d.y;
+
+    // Wrapping bords
+    if (d.y > H + 20)  { d.y = -20;  d.x = Math.random() * W; }
+    if (d.x > W + 30)  { d.x = -30; }
+    if (d.x < -30)     { d.x = W + 30; }
+  }
+});
+
+// Couleur initiale de l'info
+document.getElementById('info').style.color = 'rgba(180,220,255,0.7)';
+</script>
+</body>
+</html>

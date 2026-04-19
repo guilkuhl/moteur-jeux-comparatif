@@ -1,0 +1,28 @@
+type: COLLISION_OBJECT_TYPE_STATIC
+mass: 0.0
+friction: 0.0
+restitution: 1.0
+group: "wall"
+mask: "ball"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_BOX
+    position {
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    index: 0
+    count: 3
+  }
+  data: 480.0
+  data: 10.0
+  data: 0.0
+}
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: true
+bullet: false

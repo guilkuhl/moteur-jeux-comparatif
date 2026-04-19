@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>SNES Pixel Art Demo — v3 (sprites baked + palette saturée)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#050508;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    width:100vw; height:100vh; overflow:hidden; gap:10px;
+    font-family:monospace; color:#888;
+  }
+  #view { display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #controls {
+    display:flex; gap:8px; align-items:center;
+    font-family:monospace; font-size:10px; letter-spacing:1px;
+  }
+  button {
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.22);
+    color:rgba(255,255,255,0.6); padding:4px 12px; border-radius:3px;
+    cursor:pointer; font-family:monospace; font-size:10px; letter-spacing:1px;
+  }
+  button:hover { background:rgba(255,255,255,0.14); color:#fff; }
+  button.on { border-color:#f8e818; color:#f8e818; }
+  .sep { color:rgba(255,255,255,0.12); }
+  #hint { font-size:10px; opacity:.5; text-align:center; }
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="controls">
+  <button onclick="setScale(2)">2×</button>
+  <button onclick="setScale(3)" id="b3" class="on">3×</button>
+  <button onclick="setScale(4)">4×</button>
+  <span class="sep">|</span>
+  <button onclick="togglePause()" id="bpause">⏸ Pause</button>
+  <span class="sep">|</span>
+  <button onclick="setSpeed(0.5)">½×</button>
+  <button onclick="setSpeed(1)"   id="bsp1" class="on">1×</button>
+  <button onclick="setSpeed(2)">2×</button>
+  <span class="sep">|</span>
+  <button onclick="toggleCRT()" id="bcrt" class="on">CRT</button>
+</div>
+<div id="hint">Palette saturée style SMW · sprites pré-bakés · BGR555 · Bayer · shader CRT</div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════════════
+//  RÉSOLUTION + CANVAS
+// ═════════════════════════════════════════════════════════════════════════
+const SW = 256, SH = 224;
+const GROUND_Y = 150;
+const STRIP_H  = 24;
+const STRIP_Y  = GROUND_Y - STRIP_H;
+
+const view = document.getElementById('view');
+const off  = document.createElement('canvas');
+off.width = SW; off.height = SH;
+const octx = off.getContext('2d');
+const img  = octx.createImageData(SW, SH);
+const u32  = new Uint32Array(img.data.buffer);
+
+let SCALE = 3, paused = false, speed = 1, crtOn = true;
+function setScale(s) {
+  SCALE = s;
+  view.width = SW*s; view.height = SH*s;
+  view.style.width = (SW*s)+'px'; view.style.height = (SH*s)+'px';
+  if (gl) gl.viewport(0, 0, view.width, view.height);
+  document.querySelectorAll('#controls button').forEach(b=>{
+    if (b.textContent===s+'×') b.classList.add('on');
+    else if (['2×','3×','4×'].includes(b.textContent)) b.classList.remove('on');
+  });
+}
+function togglePause() {
+  paused=!paused;
+  document.getElementById('bpause').textContent = paused ? '▶ Play' : '⏸ Pause';
+}
+function setSpeed(s) {
+  speed = s;
+  const label = (s===0.5 ? '½×' : s+'×');
+  document.querySelectorAll('#controls button').forEach(b=>{
+    if (['½×','1×','2×'].includes(b.textContent)) b.classList.toggle('on', b.textContent===label);
+  });
+}
+function toggleCRT() {
+  crtOn = !crtOn;
+  document.getElementById('bcrt').classList.toggle('on', crtOn);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  PALETTE — INSPIRÉE SUPER MARIO WORLD / YOSHI'S ISLAND
+//  Couleurs très saturées, fort contraste, teintes acidulées
+// ═════════════════════════════════════════════════════════════════════════
+function q5(v) { return (v >> 3) << 3; }
+function quantHex(h) {
+  const r=q5((h>>16)&0xff), g=q5((h>>8)&0xff), b=q5(h&0xff);
+  return (r<<16)|(g<<8)|b;
+}
+function pack(h){
+  const r=(h>>16)&0xff, g=(h>>8)&0xff, b=h&0xff;
+  return ((0xff<<24)|(b<<16)|(g<<8)|r) >>> 0;
+}
+function hexRgb(h){ return [(h>>16)&0xff,(h>>8)&0xff,h&0xff]; }
+function lerpHex(a,b,t){
+  const [ar,ag,ab]=hexRgb(a),[br,bg,bb]=hexRgb(b);
+  return (((ar+(br-ar)*t)|0)<<16)|(((ag+(bg-ag)*t)|0)<<8)|((ab+(bb-ab)*t)|0);
+}
+function P(h){ return pack(quantHex(h)); }
+
+// Toutes les couleurs packées prêtes à l'emploi
+const C = {
+  skyTop:   P(0x1860f8),   // bleu royal pétant
+  skyMid:   P(0x5098f8),
+  skyBot:   P(0xa8d8f8),
+  skyHaze:  P(0xe0f0ff),
+
+  mountainFar:  P(0x9078d0),   // violet brumeux (couche lointaine)
+  mountainFarHi:P(0xb8a0e8),
+  mountainNear: P(0x285828),   // vert forêt saturé
+  mountainNearHi:P(0x50a838),
+  mountainSnow: P(0xf8f8f8),
+  mountainShad: P(0x102018),
+
+  cloudBody: P(0xffffff),
+  cloudHi:   P(0xffffff),
+  cloudShad: P(0xb0b8e0),
+  cloudOut:  P(0x4860a0),
+
+  grass1:    P(0x40c028),      // vert herbe vif
+  grass2:    P(0x68e038),
+  grassHi:   P(0xa8f868),      // highlight acide
+  grassShad: P(0x186818),
+  grassLine: P(0x287018),
+
+  leafOut: P(0x082010),
+  leaf1:   P(0x186020),
+  leaf2:   P(0x389820),
+  leaf3:   P(0x70d030),
+  leaf4:   P(0xb0f860),        // highlight très clair
+
+  trunk:     P(0xa06830),
+  trunkShad: P(0x502818),
+  trunkHi:   P(0xd89050),
+
+  flowerY:  P(0xf8e838),
+  flowerYs: P(0xc08018),
+  flowerR:  P(0xf83830),
+  flowerRs: P(0xa01818),
+  flowerP:  P(0xe048f8),
+  flowerPs: P(0x8018a0),
+  flowerB:  P(0x60b8f8),
+  flowerBs: P(0x2858a8),
+  flowerCore: P(0xffffff),
+
+  bushDark:  P(0x186018),
+  bushMid:   P(0x389828),
+  bushLight: P(0x80e040),
+  bushHi:    P(0xb8f878),
+
+  rockDark:  P(0x484058),
+  rockMid:   P(0x8078a0),
+  rockHi:    P(0xc0b8d8),
+
+  hudBg:     P(0x081048),
+  hudBgDark: P(0x040820),
+  hudFg:     P(0xf8e820),
+  hudBg2:    P(0x5868c8),
+
+  horizonEdge:   P(quantHex(lerpHex(0x285828, 0,        0.48))),
+  horizonSnow:   P(quantHex(lerpHex(0x285828, 0xffffff, 0.30))),
+  horizonDither: P(quantHex(lerpHex(lerpHex(0x1860f8,0xa8d8f8,0.88), 0x285828, 0.5))),
+  cliffShad:     P(quantHex(lerpHex(0x40c028, 0,        0.55))),
+  cliffHi:       P(quantHex(lerpHex(0x40c028, 0xffffff, 0.55))),
+  grassTop:      P(quantHex(lerpHex(0x40c028, 0xffffff, 0.55))),
+  grassBot:      P(quantHex(lerpHex(0x40c028, 0,        0.35))),
+};
+
+// LUT ciel — 12 teintes entre skyTop et skyHaze
+const SKY_STEPS = 12;
+const SKY_LUT = [];
+(function(){
+  const raw = [0x1860f8, 0x3878f8, 0x5098f8, 0x78b0f8, 0xa0c8f8, 0xc8e0f8, 0xe0f0ff];
+  for (let i=0; i<SKY_STEPS; i++) {
+    const t = i/(SKY_STEPS-1);
+    const f = t*(raw.length-1);
+    const idx = Math.min(f|0, raw.length-2);
+    const frac = f-idx;
+    SKY_LUT.push(P(quantHex(lerpHex(raw[idx], raw[idx+1], frac))));
+  }
+})();
+
+const BAYER4 = new Uint8Array([
+   0, 8, 2,10, 12, 4,14, 6,
+   3,11, 1, 9, 15, 7,13, 5,
+]);
+
+// ═════════════════════════════════════════════════════════════════════════
+//  PRIMITIVES PIXEL ART — ÉCRITURE DIRECTE u32
+// ═════════════════════════════════════════════════════════════════════════
+function rect(x,y,w,h,c){
+  x|=0; y|=0; w|=0; h|=0;
+  if (x<0){w+=x;x=0;} if (y<0){h+=y;y=0;}
+  if (x+w>SW) w=SW-x; if (y+h>SH) h=SH-y;
+  if (w<=0||h<=0) return;
+  for (let yy=y; yy<y+h; yy++){
+    const row=yy*SW;
+    for (let xx=x; xx<x+w; xx++) u32[row+xx]=c;
+  }
+}
+function px(x,y,c){
+  x|=0; y|=0;
+  if (x<0||y<0||x>=SW||y>=SH) return;
+  u32[y*SW+x]=c;
+}
+function addHalf(x,y,c){
+  x|=0; y|=0;
+  if (x<0||y<0||x>=SW||y>=SH) return;
+  const i=y*SW+x, old=u32[i];
+  const or=old&0xff, og=(old>>8)&0xff, ob=(old>>16)&0xff;
+  const cr=c&0xff,   cg=(c>>8)&0xff,   cb=(c>>16)&0xff;
+  u32[i] = (0xff<<24)|(q5(Math.min(255,(ob+cb)>>1))<<16)|(q5(Math.min(255,(og+cg)>>1))<<8)|q5(Math.min(255,(or+cr)>>1));
+}
+function pxMountain(peakX, baseY, halfW, peakH, c){
+  const x0=(peakX-halfW)|0, x1=(peakX+halfW)|0;
+  for (let x=x0; x<=x1; x++){
+    const t=Math.abs(x-peakX)/halfW;
+    const h=Math.round(peakH*(1-t*t));
+    if (h>0) rect(x, baseY-h, 1, h, c);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  SPRITE BAKERY — rend un sprite UNE fois dans un Uint32Array
+//  Puis blit le recopie à une position donnée (avec alpha = 0 → transparent)
+// ═════════════════════════════════════════════════════════════════════════
+function bakeSprite(w, h, fn){
+  const data = new Uint32Array(w*h);
+  const s = {
+    w, h, data,
+    px(x,y,c){ if (x>=0 && y>=0 && x<w && y<h) data[y*w+x] = c; },
+    rect(x,y,rw,rh,c){
+      for (let yy=y; yy<y+rh; yy++)
+        for (let xx=x; xx<x+rw; xx++)
+          this.px(xx,yy,c);
+    },
+    ellipse(cx,cy,rx,ry,c){
+      const ry2 = ry*ry;
+      for (let dy=-ry; dy<=ry; dy++){
+        const dx = Math.round(rx*Math.sqrt(Math.max(0,1-dy*dy/ry2)));
+        if (dx>0) this.rect(cx-dx, cy+dy, dx*2, 1, c);
+      }
+    },
+    highlight(cx,cy,rx,ry,c){
+      const ry2=ry*ry, stopDy=-((ry/3)|0);
+      for (let dy=-ry; dy<=stopDy; dy++){
+        const dx = Math.round(rx*Math.sqrt(Math.max(0,1-dy*dy/ry2)));
+        const hw = (dx*0.44)|0;
+        if (hw>0) this.rect(cx-dx+1, cy+dy, hw, 1, c);
+      }
+    },
+    ditherArea(x,y,rw,rh,c,pattern){
+      // pattern : 0 = damier pair, 1 = damier impair
+      for (let yy=y; yy<y+rh; yy++)
+        for (let xx=x; xx<x+rw; xx++)
+          if (((xx+yy)&1)===pattern) this.px(xx,yy,c);
+    },
+  };
+  fn(s);
+  return {w, h, data};
+}
+
+function blit(sprite, sx, sy){
+  sx|=0; sy|=0;
+  const {w, h, data} = sprite;
+  // clip
+  let x0=0, y0=0, x1=w, y1=h;
+  if (sx<0) x0 = -sx;
+  if (sy<0) y0 = -sy;
+  if (sx+w > SW) x1 = SW-sx;
+  if (sy+h > SH) y1 = SH-sy;
+  for (let y=y0; y<y1; y++){
+    const dstRow = (sy+y)*SW;
+    const srcRow = y*w;
+    for (let x=x0; x<x1; x++){
+      const c = data[srcRow+x];
+      if (c !== 0) u32[dstRow+sx+x] = c;
+    }
+  }
+}
+
+// Blit avec "aura" additive autour — pour effet nuage duveteux
+function blitCloud(sprite, sx, sy){
+  sx|=0; sy|=0;
+  const {w, h, data} = sprite;
+  // Halo dither autour du sprite
+  for (let y=-1; y<h+1; y++){
+    for (let x=-1; x<w+1; x++){
+      const cur = (y>=0&&y<h&&x>=0&&x<w) ? data[y*w+x] : 0;
+      if (cur !== 0) continue;
+      // voisin non-transparent ?
+      let hasN = false;
+      for (let dy=-1; dy<=1 && !hasN; dy++)
+        for (let dx=-1; dx<=1 && !hasN; dx++){
+          const nx=x+dx, ny=y+dy;
+          if (nx>=0 && nx<w && ny>=0 && ny<h && data[ny*w+nx] !== 0) hasN = true;
+        }
+      if (hasN && (((sx+x)+(sy+y))&1)===0) addHalf(sx+x, sy+y, C.cloudBody);
+    }
+  }
+  blit(sprite, sx, sy);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  DÉFINITION DES SPRITES
+// ═════════════════════════════════════════════════════════════════════════
+
+// ARBRE (3 tailles) — couronne en clusters d'ellipses, tronc texturé
+function makeTree(sc){
+  const w = Math.round(44*sc), h = Math.round(60*sc);
+  return bakeSprite(w, h, (s)=>{
+    const cx = (w/2)|0, baseY = h-1;
+    const clusters = [
+      [0,-46,13,11], [-11,-37,10,9], [11,-37,10,9],
+      [-5,-54,9,8],  [5,-54,9,8],    [0,-30,8,7],
+      [-9,-27,7,6],  [9,-27,7,6],
+    ].map(([x,y,rx,ry])=>[(x*sc)|0,(y*sc+baseY-1)|0,Math.round(rx*sc),Math.round(ry*sc)]);
+
+    // Outline épais
+    for (const [x,y,rx,ry] of clusters) s.ellipse(cx+x, y, rx+2, ry+2, C.leafOut);
+    // Ombre
+    for (const [x,y,rx,ry] of clusters) s.ellipse(cx+x, y, rx+1, ry+1, C.leaf1);
+    // Mid
+    for (const [x,y,rx,ry] of clusters) s.ellipse(cx+x, y, rx,   ry,   C.leaf2);
+    // Highlight principal (quadrant haut-gauche)
+    for (const [x,y,rx,ry] of clusters) s.highlight(cx+x, y, rx,   ry,   C.leaf3);
+    // Speckles clairs aléatoires (semi-déterministes)
+    let seed = 12345;
+    for (const [x,y,rx,ry] of clusters) {
+      for (let k=0; k<4; k++){
+        seed = (seed*1103515245+12345) & 0x7fffffff;
+        const ax = cx+x + ((seed%rx)|0) - (rx>>1);
+        const ay = y    + (((seed>>8)%ry)|0) - (ry>>1) - (ry>>2);
+        s.px(ax,   ay,   C.leaf4);
+        s.px(ax+1, ay,   C.leaf4);
+      }
+    }
+    // Tronc
+    const th = Math.round(22*sc), tw = Math.max(3, Math.round(5*sc));
+    const tx = cx - (tw>>1);
+    s.rect(tx-1, baseY-th, tw+2, th, C.trunkShad);
+    s.rect(tx,   baseY-th, tw,   th, C.trunk);
+    s.rect(tx+tw-1, baseY-th, 1, th, C.trunkShad);
+    s.rect(tx+1, baseY-th+1, 1, th-2, C.trunkHi);
+    // Écorce (marques)
+    for (let y=baseY-th+3; y<baseY-2; y+=5) {
+      s.px(tx+2, y,   C.trunkShad);
+      s.px(tx+tw-2, y+2, C.trunkShad);
+    }
+    // Base herbe
+    s.rect(tx-2, baseY,   tw+4, 1, C.leafOut);
+  });
+}
+
+// NUAGE — forme multi-blobs avec ombre sous le ventre
+function makeCloud(sc){
+  const w = Math.round(56*sc), h = Math.round(28*sc);
+  return bakeSprite(w, h, (s)=>{
+    const cx = (w/2)|0, cy = (h/2)|0;
+    const blobs = [[0,0,11],[-12,4,8],[12,4,8],[-6,-5,7],[6,-5,7],[-3,6,6],[3,6,6]]
+      .map(([x,y,r])=>[(x*sc)|0,(y*sc)|0,Math.max(3, Math.round(r*sc))]);
+    // Contour
+    for (const [x,y,r] of blobs) s.ellipse(cx+x, cy+y, r+2, Math.round((r+2)*0.82), C.cloudOut);
+    // Corps
+    for (const [x,y,r] of blobs) s.ellipse(cx+x, cy+y, r,   Math.round(r*0.82),     C.cloudBody);
+    // Ombre sous le ventre (dither pour pseudo-transparence SNES)
+    const rw = Math.round(14*sc);
+    for (let x=cx-rw+2; x<cx+rw-2; x++){
+      for (let y=cy+Math.round(8*sc); y<cy+Math.round(11*sc); y++){
+        if (((x+y)&1)===0) s.px(x, y, C.cloudShad);
+      }
+    }
+    // Highlight haut-gauche
+    for (const [x,y,r] of blobs){
+      const hw = Math.max(2,(r*0.35)|0);
+      s.rect(cx+x-hw, cy+y-Math.round(r*0.55), hw, 1, C.cloudHi);
+    }
+  });
+}
+
+// FLEUR 5×6 — centre + 4 pétales
+function makeFlower(petalCol, shadCol){
+  return bakeSprite(5, 6, (s)=>{
+    // outline
+    s.rect(1,1,3,1, shadCol);
+    s.rect(0,2,5,2, shadCol);
+    s.rect(1,4,3,1, shadCol);
+    // pétales
+    s.rect(1,2,3,2, petalCol);
+    s.px(2,1, petalCol); s.px(2,4, petalCol);
+    s.px(0,2, petalCol); s.px(4,3, petalCol);
+    // core
+    s.px(2,2, C.flowerCore);
+    // tige
+    s.px(2,5, C.grassShad);
+  });
+}
+
+// BUISSON 16×10
+function makeBush(){
+  return bakeSprite(20, 12, (s)=>{
+    // outline bas
+    s.rect(1,10,18,2, C.bushDark);
+    // ombre
+    s.ellipse(10,8,9,4, C.bushDark);
+    // mid
+    s.ellipse(6,6,5,3, C.bushMid);
+    s.ellipse(14,6,5,3, C.bushMid);
+    s.ellipse(10,5,6,4, C.bushMid);
+    // light
+    s.ellipse(6,5,4,2, C.bushLight);
+    s.ellipse(14,5,4,2, C.bushLight);
+    s.ellipse(10,4,5,3, C.bushLight);
+    // highlight
+    s.px(6,3, C.bushHi); s.px(5,3, C.bushHi);
+    s.px(10,2, C.bushHi); s.px(11,2, C.bushHi);
+    s.px(14,3, C.bushHi); s.px(15,3, C.bushHi);
+  });
+}
+
+// ROCHER 14×9
+function makeRock(){
+  return bakeSprite(16, 10, (s)=>{
+    // outline
+    s.ellipse(8,7,7,3, C.rockDark);
+    // corps
+    s.ellipse(8,6,6,2, C.rockMid);
+    s.ellipse(8,5,5,2, C.rockMid);
+    s.ellipse(6,4,3,1, C.rockMid);
+    // highlight
+    s.px(5,4, C.rockHi); s.px(6,4, C.rockHi);
+    s.px(8,3, C.rockHi);
+    s.rect(4,5,2,1, C.rockHi);
+  });
+}
+
+// Sprites bakés au boot
+const SP_TREE_S = makeTree(0.82);
+const SP_TREE_M = makeTree(1.0);
+const SP_TREE_L = makeTree(1.18);
+const SP_CLOUD_S = makeCloud(0.85);
+const SP_CLOUD_M = makeCloud(1.0);
+const SP_CLOUD_L = makeCloud(1.15);
+const SP_FLOWER_Y = makeFlower(C.flowerY, C.flowerYs);
+const SP_FLOWER_R = makeFlower(C.flowerR, C.flowerRs);
+const SP_FLOWER_P = makeFlower(C.flowerP, C.flowerPs);
+const SP_FLOWER_B = makeFlower(C.flowerB, C.flowerBs);
+const SP_BUSH = makeBush();
+const SP_ROCK = makeRock();
+
+// ═════════════════════════════════════════════════════════════════════════
+//  WORLD DATA
+// ═════════════════════════════════════════════════════════════════════════
+const MTN_FAR  = [[-8,18],[40,25],[96,17],[152,23],[210,19],[262,15],[380,20],[460,26]];
+const MTN_NEAR = [[18,28],[60,38],[118,26],[176,34],[234,28],[268,22],[340,30],[430,24]];
+const MTN_PERIOD = 512;
+
+// [worldX, y, sprite]
+const CLOUD_POS = [
+  [56,  28, SP_CLOUD_L],
+  [200, 22, SP_CLOUD_M],
+  [380, 30, SP_CLOUD_L],
+  [580, 24, SP_CLOUD_S],
+  [700, 26, SP_CLOUD_M],
+  [820, 20, SP_CLOUD_M],
+];
+const CLOUD_PERIOD = 1024;
+
+// [worldX, sprite, yOffset]
+const TREE_POS = [
+  [44,  SP_TREE_M, 0],
+  [128, SP_TREE_L, 0],
+  [220, SP_TREE_S, 0],
+  [310, SP_TREE_M, 0],
+  [420, SP_TREE_L, 0],
+  [500, SP_TREE_S, 0],
+];
+const TREE_PERIOD = 576;
+
+// Buissons + rochers au sol (BG1)
+const DECO_POS = [
+  [30,  SP_BUSH], [90, SP_ROCK], [160, SP_BUSH], [260, SP_ROCK],
+  [340, SP_BUSH], [400, SP_BUSH], [470, SP_ROCK], [540, SP_BUSH],
+];
+const DECO_PERIOD = 576;
+
+// Fleurs : mix de couleurs
+const FLOWER_POS = [
+  [12,  SP_FLOWER_Y], [34,  SP_FLOWER_R], [68,  SP_FLOWER_P], [98,  SP_FLOWER_Y],
+  [136, SP_FLOWER_B], [168, SP_FLOWER_Y], [204, SP_FLOWER_R], [232, SP_FLOWER_P],
+];
+
+// ═════════════════════════════════════════════════════════════════════════
+//  RENDU
+// ═════════════════════════════════════════════════════════════════════════
+function drawSky() {
+  for (let y=0; y<GROUND_Y; y++){
+    const t = y/(GROUND_Y-1);
+    const f = t*(SKY_STEPS-1);
+    const idx = f|0;
+    const frac = f-idx;
+    const thr16 = Math.round(frac*16);
+    const base = SKY_LUT[idx];
+    const next = SKY_LUT[Math.min(idx+1, SKY_STEPS-1)];
+    const row = y*SW;
+    for (let x=0; x<SW; x++){
+      const b = BAYER4[((y&3)<<2)|(x&3)];
+      u32[row+x] = (b<thr16) ? next : base;
+    }
+  }
+}
+
+function drawMountains(scroll) {
+  const off1 = ((scroll%MTN_PERIOD)+MTN_PERIOD)%MTN_PERIOD;
+  // Montagnes lointaines (violet brumeux)
+  for (const [wx,hh] of MTN_FAR){
+    for (let r=-1; r<=1; r++){
+      const sx = wx - off1 + r*MTN_PERIOD;
+      if (sx+hh*2.2<0 || sx-hh*2.2>SW) continue;
+      pxMountain(sx, GROUND_Y, hh*2.0, hh, C.mountainFar);
+      // neige au sommet
+      const peakY = GROUND_Y - hh;
+      for (let dx=-2; dx<=2; dx++) px(sx+dx, peakY+1, C.mountainFarHi);
+    }
+  }
+  // Proches (vert foncé + highlight)
+  for (const [wx,hh] of MTN_NEAR){
+    for (let r=-1; r<=1; r++){
+      const sx = wx - off1 + r*MTN_PERIOD;
+      if (sx+hh*1.9<0 || sx-hh*1.9>SW) continue;
+      pxMountain(sx, GROUND_Y, hh*1.7, hh, C.mountainNear);
+      // Highlight versant gauche
+      for (let dy=-hh+2; dy<0; dy++){
+        const dx = Math.round(hh*1.6 * (dy+hh)/hh);
+        if (dx>2) px(sx-dx+1, GROUND_Y+dy, C.mountainNearHi);
+      }
+      // Neige
+      const peakY = GROUND_Y - hh;
+      rect(sx-1, peakY+1, 3, 1, C.mountainSnow);
+      px(sx-2, peakY+2, C.mountainSnow);
+      px(sx+2, peakY+2, C.mountainSnow);
+    }
+  }
+  rect(0, GROUND_Y-4, SW, 2, C.horizonEdge);
+  rect(0, GROUND_Y-5, SW, 1, C.horizonSnow);
+  for (let x=0; x<SW; x+=2) px(x, GROUND_Y-7, C.horizonDither);
+  for (let x=1; x<SW; x+=2) px(x, GROUND_Y-8, C.horizonDither);
+}
+
+function drawClouds(scroll){
+  const off1 = ((scroll%CLOUD_PERIOD)+CLOUD_PERIOD)%CLOUD_PERIOD;
+  for (const [wx, cy, sprite] of CLOUD_POS){
+    for (let r=-1; r<=1; r++){
+      const sx = wx - off1 + r*CLOUD_PERIOD;
+      if (sx > SW || sx+sprite.w < 0) continue;
+      blitCloud(sprite, sx, cy - (sprite.h>>1));
+    }
+  }
+}
+
+function drawGroundStrip(scroll){
+  const tW=8, tH=8;
+  const offT = (((scroll%tW)+tW)%tW)|0;
+  // Bande d'herbe (BG2)
+  for (let x=-tW-offT; x<SW+tW; x+=tW){
+    const tileX = ((x+offT)/tW)|0;
+    for (let y=STRIP_Y; y<GROUND_Y; y+=tH){
+      const alt = ((tileX + ((y/tH)|0)) & 1) === 0;
+      rect(x, y, tW, tH, alt ? C.grass1 : C.grass2);
+    }
+  }
+  // Brins d'herbe (détail)
+  for (let x=-tW-offT; x<SW+tW; x+=tW){
+    rect(x, STRIP_Y, 1, GROUND_Y-STRIP_Y, C.grassLine);
+  }
+  for (let y=STRIP_Y; y<GROUND_Y; y+=tH){
+    rect(0, y, SW, 1, C.grassLine);
+  }
+  // Bord falaise
+  rect(0, STRIP_Y-2, SW, 2, C.cliffShad);
+  rect(0, STRIP_Y,   SW, 1, C.cliffHi);
+  // Points de highlight aléatoires (touffes)
+  for (let x=(-offT)%16; x<SW; x+=16){
+    px(x+3, STRIP_Y+3, C.grassHi);
+    px(x+9, STRIP_Y+9, C.grassHi);
+  }
+}
+
+function drawGround(scroll){
+  const tW=8, tH=8;
+  const offX = (((scroll%tW)+tW)%tW)|0;
+  for (let x=-tW; x<SW+tW; x+=tW){
+    const tileX = ((x+offX)/tW)|0;
+    for (let y=GROUND_Y; y<SH; y+=tH){
+      const alt = ((tileX + ((y/tH)|0)) & 1) === 0;
+      rect(x-offX, y, tW, tH, alt ? C.grass1 : C.grass2);
+    }
+  }
+  for (let x=-tW; x<SW+tW; x+=tW) rect(x-offX, GROUND_Y, 1, SH-GROUND_Y, C.grassLine);
+  for (let y=GROUND_Y; y<SH; y+=tH) rect(0, y, SW, 1, C.grassLine);
+  rect(0, GROUND_Y, SW, 1, C.grassTop);
+  rect(0, SH-2,     SW, 2, C.grassBot);
+  // touffes brillantes
+  for (let x=(-offX)%16; x<SW; x+=16){
+    px(x+4, GROUND_Y+3, C.grassHi);
+    px(x+5, GROUND_Y+3, C.grassHi);
+    px(x+10, GROUND_Y+9, C.grassHi);
+  }
+}
+
+function drawVegetation(scroll, frame){
+  // Arbres (BG2 zone proche)
+  const offT = ((scroll%TREE_PERIOD)+TREE_PERIOD)%TREE_PERIOD;
+  for (const [wx, sprite] of TREE_POS){
+    for (let r=-1; r<=1; r++){
+      const sx = wx - offT + r*TREE_PERIOD;
+      if (sx+sprite.w<0 || sx>SW) continue;
+      blit(sprite, (sx-(sprite.w>>1))|0, GROUND_Y-sprite.h+1);
+    }
+  }
+
+  // Fleurs sur la bande d'herbe haute (palette cycling léger : phase colorée qui pulse)
+  const fOff = ((scroll%256)+256)%256;
+  for (let i=0; i<FLOWER_POS.length; i++){
+    const [fx, sprite] = FLOWER_POS[i];
+    const sx = (((fx - fOff) % 256) + 256) % 256 | 0;
+    const fy = STRIP_Y + 4 + ((fx*7) & 3);
+    blit(sprite, sx-2, fy);
+  }
+
+  // Buissons + rochers AU PREMIER PLAN (devant l'arbre, sur le sol bas)
+  const offD = ((scroll%DECO_PERIOD)+DECO_PERIOD)%DECO_PERIOD;
+  for (const [wx, sprite] of DECO_POS){
+    for (let r=-1; r<=1; r++){
+      const sx = wx - offD + r*DECO_PERIOD;
+      if (sx+sprite.w<0 || sx>SW) continue;
+      blit(sprite, sx|0, SH-sprite.h-12);
+    }
+  }
+}
+
+// HUD + mini-font 3×5
+const GLYPHS = {
+  '0':[[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+  '1':[[0,1,0],[1,1,0],[0,1,0],[0,1,0],[1,1,1]],
+  '2':[[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+  '3':[[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]],
+  '4':[[1,0,1],[1,0,1],[1,1,1],[0,0,1],[0,0,1]],
+  '5':[[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+  '6':[[1,1,1],[1,0,0],[1,1,1],[1,0,1],[1,1,1]],
+  '7':[[1,1,1],[0,0,1],[0,1,0],[0,1,0],[0,1,0]],
+  '8':[[1,1,1],[1,0,1],[1,1,1],[1,0,1],[1,1,1]],
+  '9':[[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]],
+  'F':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,0,0]],
+  'P':[[1,1,1],[1,0,1],[1,1,1],[1,0,0],[1,0,0]],
+  'S':[[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+  'X':[[1,0,1],[1,0,1],[0,1,0],[1,0,1],[1,0,1]],
+  'B':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,1,0]],
+  'G':[[1,1,1],[1,0,0],[1,0,1],[1,0,1],[1,1,1]],
+  ':':[[0],[1],[0],[1],[0]],
+  ' ':[[0],[0],[0],[0],[0]],
+};
+function drawHudText(str, x, y, color){
+  let pxx = x;
+  for (const ch of str){
+    const g = GLYPHS[ch] || GLYPHS[' '];
+    for (let row=0; row<g.length; row++)
+      for (let col=0; col<g[row].length; col++)
+        if (g[row][col]) px(pxx+col, y+row, color);
+    pxx += (g[0]?.length || 1) + 1;
+  }
+}
+function drawHud(fps, scroll){
+  rect(0, SH-10, SW, 10, C.hudBg);
+  rect(0, SH-11, SW, 1,  C.hudBgDark);
+  drawHudText(`FPS:${fps|0}  X:${(scroll|0).toString().padStart(5,'0')}`, 3, SH-8, C.hudFg);
+  drawHudText('BG1 BG2 BG3 BG4', SW-82, SH-8, C.hudBg2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  SHADER CRT WebGL (inchangé par rapport v2)
+// ═════════════════════════════════════════════════════════════════════════
+let gl, glProg, glTex, uTexSize, uOutSize, uCrtOn;
+
+const VS = `
+attribute vec2 aPos;
+varying vec2 vUV;
+void main(){
+  vUV = aPos*0.5+0.5;
+  vUV.y = 1.0 - vUV.y;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const FS = `
+precision mediump float;
+varying vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2 uTexSize;
+uniform vec2 uOutSize;
+uniform float uCrtOn;
+
+vec2 barrel(vec2 uv){
+  uv = uv*2.0 - 1.0;
+  vec2 off = uv.yx*uv.yx;
+  uv += uv*off*0.045;
+  return uv*0.5 + 0.5;
+}
+vec3 sampleBleed(vec2 uv){
+  vec2 px = vec2(1.0/uTexSize.x, 0.0);
+  vec3 c0 = texture2D(uTex, uv).rgb;
+  vec3 cL = texture2D(uTex, uv - px).rgb;
+  vec3 cR = texture2D(uTex, uv + px).rgb;
+  return c0*0.6 + (cL + cR)*0.2;
+}
+void main(){
+  vec2 uv = uCrtOn > 0.5 ? barrel(vUV) : vUV;
+  if (uCrtOn > 0.5 && (uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0)){
+    gl_FragColor = vec4(0.0,0.0,0.0,1.0); return;
+  }
+  vec3 c = uCrtOn > 0.5 ? sampleBleed(uv) : texture2D(uTex, uv).rgb;
+  if (uCrtOn > 0.5){
+    float lum = dot(c, vec3(0.299, 0.587, 0.114));
+    float scan = 0.5 + 0.5*cos(uv.y*uTexSize.y*6.2831853);
+    float scanStrength = mix(0.45, 0.12, lum);
+    c *= 1.0 - scanStrength*(1.0 - scan);
+    float sub = fract(uv.x*uTexSize.x*3.0);
+    vec3 mask = vec3(0.82);
+    if (sub<0.333)      mask.r = 1.18;
+    else if (sub<0.666) mask.g = 1.18;
+    else                mask.b = 1.18;
+    c *= mask;
+    c += max(vec3(0.0), c-0.80)*0.35;
+    vec2 v = vUV*2.0-1.0;
+    c *= 1.0 - dot(v,v)*0.22;
+  }
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+function initGL(){
+  gl = view.getContext('webgl', { antialias:false, preserveDrawingBuffer:false });
+  if (!gl) { alert('WebGL indisponible'); return false; }
+  function compile(t,s){
+    const sh=gl.createShader(t);
+    gl.shaderSource(sh,s); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){
+      console.error(gl.getShaderInfoLog(sh)); return null;
+    }
+    return sh;
+  }
+  const vs = compile(gl.VERTEX_SHADER, VS);
+  const fs = compile(gl.FRAGMENT_SHADER, FS);
+  glProg = gl.createProgram();
+  gl.attachShader(glProg, vs); gl.attachShader(glProg, fs);
+  gl.linkProgram(glProg);
+  if (!gl.getProgramParameter(glProg, gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(glProg)); return false;
+  }
+  gl.useProgram(glProg);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1
+  ]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(glProg, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  glTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, glTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(gl.getUniformLocation(glProg, 'uTex'), 0);
+  uTexSize = gl.getUniformLocation(glProg, 'uTexSize');
+  uOutSize = gl.getUniformLocation(glProg, 'uOutSize');
+  uCrtOn   = gl.getUniformLocation(glProg, 'uCrtOn');
+  return true;
+}
+function presentCRT(){
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, glTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, off);
+  gl.uniform2f(uTexSize, SW, SH);
+  gl.uniform2f(uOutSize, view.width, view.height);
+  gl.uniform1f(uCrtOn, crtOn ? 1.0 : 0.0);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  BOUCLE
+// ═════════════════════════════════════════════════════════════════════════
+let scrollX = 0, lastT = 0, fps = 60, frameCount = 0;
+
+function frame(t){
+  requestAnimationFrame(frame);
+  const dt = Math.min(t-lastT, 50);
+  lastT = t;
+  fps = fps*0.93 + (1000/Math.max(dt,1))*0.07;
+  if (!paused){
+    scrollX += (dt/16.67)*speed;
+    frameCount++;
+  }
+  drawSky();
+  drawMountains(scrollX*0.25);
+  drawClouds(scrollX*0.5);
+  drawGroundStrip(scrollX);
+  drawGround(scrollX);
+  drawVegetation(scrollX, frameCount);
+  drawHud(fps, scrollX);
+  octx.putImageData(img, 0, 0);
+  presentCRT();
+}
+
+if (initGL()){
+  setScale(3);
+  requestAnimationFrame(t => { lastT=t; requestAnimationFrame(frame); });
+}
+</script>
+</body>
+</html>

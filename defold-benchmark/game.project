@@ -1,0 +1,20 @@
+[project]
+title = Defold Benchmark
+version = 1.0
+
+[display]
+width = 960
+height = 540
+
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /builtins/render/default.renderc
+
+[physics]
+gravity_y = 0
+use_fixed_timestep = 1
+
+[html5]
+heap_size = 256
+set_custom_heap_size = 1
+include_dev_tool = 0

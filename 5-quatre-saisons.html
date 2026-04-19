@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — 4 Saisons</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #87ceeb; }
+    canvas { position: fixed; top: 0; left: 0; display: block; }
+    #season-name {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-family: Georgia, serif; font-size: 4.5rem; font-weight: 700;
+      pointer-events: none; z-index: 20;
+      opacity: 0; transition: opacity 0.7s ease;
+      text-shadow: 0 2px 30px rgba(0,0,0,0.3);
+      letter-spacing: 5px;
+    }
+    #season-name.show { opacity: 1; }
+    #info {
+      position: fixed; top: 16px; left: 16px; z-index: 10;
+      font-family: monospace; font-size: 12px; line-height: 2;
+      color: rgba(255,255,255,0.65); pointer-events: none;
+    }
+    #info b { color: #fff; }
+    #progress {
+      position: fixed; bottom: 0; left: 0; height: 3px;
+      width: 0%; z-index: 10; transition: background 1.5s;
+    }
+    #controls {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 10;
+    }
+    .btn {
+      background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8); padding: 7px 18px; border-radius: 999px;
+      cursor: pointer; font-family: monospace; font-size: 12px;
+    }
+    .btn:hover  { background: rgba(0,0,0,0.4); color: #fff; }
+    .btn.active { border-color: #fff; background: rgba(255,255,255,0.15); color: #fff; }
+    a.back {
+      position: fixed; top: 16px; right: 16px; z-index: 10;
+      color: rgba(255,255,255,0.4); font-family: monospace; font-size: 12px; text-decoration: none;
+    }
+    a.back:hover { color: #fff; }
+  </style>
+</head>
+<body>
+<div id="season-name"></div>
+<div id="info">Sprites GPU : <b id="count">0</b> | <b id="slbl">Printemps</b></div>
+<div id="progress" id="progress"></div>
+<div id="controls">
+  <button class="btn active" id="btn-auto"      onclick="toggleAuto()">⏵ Auto</button>
+  <button class="btn"        id="btn-spring"    onclick="goSeason(0)">🌸</button>
+  <button class="btn"        id="btn-summer"    onclick="goSeason(1)">☀️</button>
+  <button class="btn"        id="btn-autumn"    onclick="goSeason(2)">🍂</button>
+  <button class="btn"        id="btn-winter"    onclick="goSeason(3)">❄️</button>
+</div>
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const NUM = 5500;
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+const app = new PIXI.Application({ width: W, height: H, antialias: false, backgroundAlpha: 0 });
+app.view.style.position = 'fixed';
+app.view.style.top  = '0';
+app.view.style.left = '0';
+document.body.appendChild(app.view);
+
+// ─── SpriteGPULayer ───────────────────────────────────────────────────────────
+const gpuLayer = new PIXI.ParticleContainer(NUM, {
+  position: true, rotation: true, scale: true, tint: true,
+});
+app.stage.addChild(gpuLayer);
+
+// ─── Textures — TOUTES définies avant SEASONS ─────────────────────────────────
+function mkCircle(r) {
+  const g = new PIXI.Graphics();
+  g.beginFill(0xffffff); g.drawCircle(0, 0, r); g.endFill();
+  const t = app.renderer.generateTexture(g); g.destroy(); return t;
+}
+function mkEllipse(rx, ry) {
+  const g = new PIXI.Graphics();
+  g.beginFill(0xffffff); g.drawEllipse(0, 0, rx, ry); g.endFill();
+  const t = app.renderer.generateTexture(g); g.destroy(); return t;
+}
+function mkStar() {
+  const g = new PIXI.Graphics();
+  g.beginFill(0xffffff);
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i/10)*Math.PI*2 - Math.PI/2;
+    const r = i%2===0 ? 7 : 3;
+    pts.push(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  g.drawPolygon(pts); g.endFill();
+  const t = app.renderer.generateTexture(g); g.destroy(); return t;
+}
+function mkFlake() {
+  const g = new PIXI.Graphics();
+  g.lineStyle(1.5, 0xffffff, 1);
+  for (let i = 0; i < 6; i++) {
+    const a = (i/6)*Math.PI*2;
+    g.moveTo(0,0); g.lineTo(Math.cos(a)*8, Math.sin(a)*8);
+  }
+  const t = app.renderer.generateTexture(g); g.destroy(); return t;
+}
+
+// Créer TOUTES les textures ici, avant la définition de SEASONS
+const T_DOT    = mkCircle(4);
+const T_PETAL  = mkEllipse(6, 10);
+const T_LEAF   = mkEllipse(9, 5);
+const T_FLAKE  = mkFlake();
+const T_STAR   = mkStar();
+const T_GLOW   = mkCircle(12);
+
+// ─── Définition des saisons (textured uniquement avec les constantes ci-dessus) ──
+const SEASONS = [
+  {
+    name: '🌸 Printemps', label: 'Printemps',
+    color: '#ffb7c5',  barColor: '#ff9eb5',
+    bgTop: 0x87ceeb, bgBot: 0xd4f0c0,
+    groups: [
+      { tex:T_PETAL, n:2200, tints:[0xffb7c5,0xffc8d5,0xffd5e0,0xffffff,0xffe0f0],
+        sMin:0.4, sMax:1.2, aBase:0.75, vy:[0.4,1.2], vxR:1.5, spin:0.04, wob:0.35 },
+      { tex:T_DOT,   n:1500, tints:[0xffee88,0xffdd44,0xfff0aa,0xffffff],
+        sMin:0.15, sMax:0.4, aBase:0.4, vy:[-0.3,0.4], vxR:2.5, spin:0, wob:0.9 },
+      { tex:T_STAR,  n:500,  tints:[0xffffff,0xffffcc,0xffeecc],
+        sMin:0.1,  sMax:0.4, aBase:0.25, vy:[-0.2,0.2], vxR:0.5, spin:0.02, wob:0.15 },
+    ],
+  },
+  {
+    name: '☀️ Été', label: 'Été',
+    color: '#ffe066', barColor: '#f39c12',
+    bgTop: 0x1a6fbf, bgBot: 0x27ae60,
+    groups: [
+      { tex:T_DOT,   n:1800, tints:[0xaaffaa,0x88ffaa,0xccffbb,0xffffff,0xddffcc],
+        sMin:0.2, sMax:0.7, aBase:0.5, vy:[-0.5,0.5], vxR:1.8, spin:0, wob:1.8 },
+      { tex:T_STAR,  n:800,  tints:[0xffff88,0xffee44,0xffffff,0xffffaa],
+        sMin:0.1, sMax:0.4, aBase:0.3, vy:[-0.6,0.1], vxR:0.5, spin:0.03, wob:0.3 },
+      { tex:T_GLOW,  n:600,  tints:[0xffffff,0xfff0cc],
+        sMin:0.3, sMax:0.9, aBase:0.04, vy:[-1.2,-0.3], vxR:1.0, spin:0, wob:1.2 },
+    ],
+  },
+  {
+    name: '🍂 Automne', label: 'Automne',
+    color: '#ff8833', barColor: '#e07a10',
+    bgTop: 0x1a1005, bgBot: 0x2d1a08,
+    groups: [
+      { tex:T_LEAF,  n:2500, tints:[0xcc4400,0xe86e00,0xf5a800,0xaa3300,0xdd6600,0x7a2200],
+        sMin:0.5, sMax:1.5, aBase:0.85, vy:[0.5,1.8], vxR:2.5, spin:0.06, wob:0.6 },
+      { tex:T_DOT,   n:1500, tints:[0x884400,0xaa5500,0x663300,0x995500],
+        sMin:0.15, sMax:0.4, aBase:0.4, vy:[0.3,1.0], vxR:2.8, spin:0, wob:0.8 },
+      { tex:T_STAR,  n:400,  tints:[0xff4400,0xff8833,0xffcc00,0xff6600],
+        sMin:0.1, sMax:0.35, aBase:0.5, vy:[-1.0,-0.2], vxR:1.5, spin:0.05, wob:0.5 },
+    ],
+  },
+  {
+    name: '❄️ Hiver', label: 'Hiver',
+    color: '#aaddff', barColor: '#5599dd',
+    bgTop: 0x050a15, bgBot: 0x0d1525,
+    groups: [
+      { tex:T_FLAKE, n:1600, tints:[0xffffff,0xddeeff,0xbbddff,0xeef5ff],
+        sMin:0.35, sMax:1.1, aBase:0.7, vy:[0.3,1.0], vxR:0.9, spin:0.015, wob:0.3 },
+      { tex:T_DOT,   n:2500, tints:[0xffffff,0xeef5ff,0xddeeff],
+        sMin:0.1, sMax:0.35, aBase:0.55, vy:[0.8,2.0], vxR:0.4, spin:0, wob:0.15 },
+      { tex:T_STAR,  n:400,  tints:[0xaaddff,0xffffff,0x88ccff,0xccddff],
+        sMin:0.15, sMax:0.5, aBase:0.4, vy:[0.1,0.4], vxR:0.6, spin:0.02, wob:0.2 },
+    ],
+  },
+];
+
+// ─── Fond dégradé (Graphics dans le stage) ────────────────────────────────────
+const bgGfx = new PIXI.Graphics();
+app.stage.addChildAt(bgGfx, 0);
+
+function hexToRgb(h) { return { r:(h>>16)&0xff, g:(h>>8)&0xff, b:h&0xff }; }
+function lerpHex(a, b, t) {
+  const ca = hexToRgb(a), cb = hexToRgb(b);
+  const r = ca.r + (cb.r-ca.r)*t | 0;
+  const g = ca.g + (cb.g-ca.g)*t | 0;
+  const bl= ca.b + (cb.b-ca.b)*t | 0;
+  return (r<<16)|(g<<8)|bl;
+}
+function drawBg(top, bot) {
+  bgGfx.clear();
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const t = (i + 0.5) / N;
+    bgGfx.beginFill(lerpHex(top, bot, t));
+    bgGfx.drawRect(0, i*(H/N), W, H/N + 1);
+    bgGfx.endFill();
+  }
+}
+
+// État de la transition de fond
+let bgTopCur, bgBotCur, bgTopTgt, bgBotTgt;
+
+// ─── Particules ───────────────────────────────────────────────────────────────
+const sprites = [];
+const pdata   = [];
+
+function buildParticles(season) {
+  // Vider le layer
+  gpuLayer.removeChildren();
+  sprites.length = 0;
+  pdata.length   = 0;
+
+  for (const grp of season.groups) {
+    for (let i = 0; i < grp.n; i++) {
+      const sp  = new PIXI.Sprite(grp.tex);
+      sp.anchor.set(0.5);
+      const sz = grp.sMin + Math.random() * (grp.sMax - grp.sMin);
+      sp.scale.set(sz);
+      sp.tint   = grp.tints[grp.tints.length * Math.random() | 0];
+      sp.alpha  = grp.aBase * (0.5 + Math.random() * 0.5);
+      sp.x      = Math.random() * W;
+      // Automne/hiver : feuilles tombent depuis le haut → startY aléatoire sur toute la hauteur
+      // Braises/lucioles : partent du bas
+      sp.y      = grp.vy[0] < 0 ? H + Math.random()*50 : Math.random() * H;
+      sp.rotation = Math.random() * Math.PI * 2;
+      gpuLayer.addChild(sp);
+      sprites.push(sp);
+      pdata.push({
+        speedY: grp.vy[0] + Math.random() * (grp.vy[1] - grp.vy[0]),
+        drift:  (Math.random() - 0.5) * grp.vxR,
+        spin:   grp.spin * (Math.random() < 0.5 ? 1 : -1),
+        wob:    grp.wob,
+        phase:  Math.random() * Math.PI * 2,
+        freq:   0.015 + Math.random() * 0.03,
+        aBase:  grp.aBase * (0.5 + Math.random() * 0.5),
+        goesUp: grp.vy[0] < 0,
+      });
+    }
+  }
+}
+
+// ─── Gestion des saisons ──────────────────────────────────────────────────────
+let curSeason  = -1;
+let autoMode   = true;
+let seasonTime = 0;
+const DURATION = 12; // secondes par saison
+
+const progressEl  = document.getElementById('progress');
+const seasonNameEl = document.getElementById('season-name');
+
+function showTitle(s) {
+  seasonNameEl.textContent = s.name;
+  seasonNameEl.style.color = s.color;
+  seasonNameEl.classList.add('show');
+  setTimeout(() => seasonNameEl.classList.remove('show'), 2500);
+}
+
+function goSeason(idx) {
+  if (idx === curSeason) return;
+  curSeason  = idx;
+  seasonTime = 0;
+  const s = SEASONS[idx];
+  document.getElementById('slbl').textContent = s.label;
+  progressEl.style.background = s.barColor;
+  // Transition fond
+  if (bgTopCur === undefined) {
+    bgTopCur = s.bgTop; bgBotCur = s.bgBot;
+  }
+  bgTopTgt = s.bgTop; bgBotTgt = s.bgBot;
+  buildParticles(s);
+  showTitle(s);
+}
+
+function toggleAuto() {
+  autoMode = !autoMode;
+  const btn = document.getElementById('btn-auto');
+  btn.classList.toggle('active', autoMode);
+  btn.textContent = autoMode ? '⏵ Auto' : '⏸ Pause';
+}
+
+// ─── Boucle principale ────────────────────────────────────────────────────────
+let windTime = 0;
+
+app.ticker.add((delta) => {
+  const dt = delta / 60;
+  windTime += dt;
+
+  // Auto-avancement
+  if (autoMode) {
+    seasonTime += dt;
+    progressEl.style.width = Math.min(seasonTime / DURATION, 1) * 100 + '%';
+    if (seasonTime >= DURATION) goSeason((curSeason + 1) % 4);
+  }
+
+  // Interpoler le fond
+  if (bgTopCur !== bgTopTgt || bgBotCur !== bgBotTgt) {
+    bgTopCur = lerpHex(bgTopCur, bgTopTgt, dt * 0.7);
+    bgBotCur = lerpHex(bgBotCur, bgBotTgt, dt * 0.7);
+    // Stopper l'interpolation quand on est très proche
+    if (Math.abs((bgTopCur >> 16 & 0xff) - (bgTopTgt >> 16 & 0xff)) < 2) {
+      bgTopCur = bgTopTgt; bgBotCur = bgBotTgt;
+    }
+    drawBg(bgTopCur, bgBotCur);
+  }
+
+  // Vent global
+  const wind = Math.sin(windTime*0.9)*1.6 + Math.sin(windTime*1.8)*0.7;
+
+  for (let i = 0; i < pdata.length; i++) {
+    const d  = pdata[i];
+    const sp = sprites[i];
+    d.phase += d.freq;
+    const wobble = Math.sin(d.phase) * d.wob;
+    sp.x += d.drift + wind * 0.18 + wobble;
+    sp.y += d.speedY;
+    sp.rotation += d.spin;
+    sp.x = sp.x;
+    sp.y = sp.y;
+    // Wrapping
+    if (d.goesUp) {
+      if (sp.y < -30) { sp.y = H + 30; sp.x = Math.random() * W; }
+    } else {
+      if (sp.y > H + 30) { sp.y = -30; sp.x = Math.random() * W; }
+    }
+    if (sp.x > W + 30) sp.x = -30;
+    if (sp.x < -30)    sp.x = W + 30;
+  }
+
+  document.getElementById('count').textContent = pdata.length.toLocaleString();
+});
+
+// ─── Démarrage ────────────────────────────────────────────────────────────────
+goSeason(0);
+drawBg(SEASONS[0].bgTop, SEASONS[0].bgBot);
+bgTopCur = SEASONS[0].bgTop;
+bgBotCur = SEASONS[0].bgBot;
+bgTopTgt = SEASONS[0].bgTop;
+bgBotTgt = SEASONS[0].bgBot;
+</script>
+</body>
+</html>

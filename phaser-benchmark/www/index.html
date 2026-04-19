@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phaser 4 Benchmark</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="phaser.min.js"></script>
+<script>
+class BenchmarkScene extends Phaser.Scene {
+  constructor() {
+    super({ key: 'Benchmark' });
+    this.spawnTimer = 0;
+    this.activeCount = 0;
+    this.stopped = false;
+  }
+
+  create() {
+    // Générer la texture de balle procéduralement
+    const gfx = this.add.graphics();
+    gfx.fillStyle(0x4db3ff, 1);
+    gfx.fillCircle(8, 8, 8);
+    gfx.generateTexture('ball', 16, 16);
+    gfx.destroy();
+
+    // Groupe de physique pour les balles
+    this.balls = this.physics.add.group({
+      bounceX: 1,
+      bounceY: 1,
+      collideWorldBounds: true
+    });
+
+    // Collision balle ↔ balle
+    this.physics.add.collider(this.balls, this.balls);
+
+    // HUD
+    const style = { fontSize: '18px', fill: '#ffffff', fontFamily: 'monospace' };
+    this.fpsText   = this.add.text(10, 10, 'FPS: 0', style).setDepth(10);
+    this.countText = this.add.text(10, 35, 'Sprites: 0', style).setDepth(10);
+  }
+
+  spawnBall() {
+    const x = Phaser.Math.Between(16, 944);
+    const y = Phaser.Math.Between(16, 524);
+    const ball = this.balls.create(x, y, 'ball');
+    if (!ball) return;
+    ball.setBounce(1, 1);
+    ball.setCollideWorldBounds(true);
+    ball.setVelocity(
+      Phaser.Math.Between(-200, 200) || 100,
+      Phaser.Math.Between(-200, 200) || 100
+    );
+    ball.setCircle(8);
+    this.activeCount++;
+  }
+
+  update(time, delta) {
+    if (this.stopped) return;
+
+    // Spawn 10 balles/seconde
+    this.spawnTimer += delta;
+    while (this.spawnTimer >= 100) {
+      this.spawnTimer -= 100;
+      this.spawnBall();
+    }
+
+    // FPS (moyenne sur quelques frames via Phaser loop)
+    const fps = Math.floor(this.game.loop.actualFps);
+    this.fpsText.setText('FPS: ' + fps);
+    this.countText.setText('Sprites: ' + this.activeCount);
+
+    if (fps > 0 && fps < 20 && this.activeCount > 50) {
+      this.stopped = true;
+      this.fpsText.setColor('#ff0000');
+      this.countText.setColor('#ff0000');
+      this.fpsText.setText('FPS: ' + fps + '  [STOP — FPS < 20]');
+      window.benchmarkResult = { sprites: this.activeCount, fps: fps };
+    }
+  }
+}
+
+window.benchmarkResult = null;
+
+const config = {
+  type: Phaser.AUTO,
+  width: 960,
+  height: 540,
+  backgroundColor: '#1a1a2e',
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { x: 0, y: 0 },
+      debug: false
+    }
+  },
+  scene: [BenchmarkScene]
+};
+
+window.phaserGame = new Phaser.Game(config);
+</script>
+</body>
+</html>

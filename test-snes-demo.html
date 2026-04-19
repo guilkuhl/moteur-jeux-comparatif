@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SNES Pixel Art Demo</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#050508;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      width:100vw; height:100vh; overflow:hidden; gap:10px;
+    }
+    #wrap { position:relative; flex-shrink:0; }
+    canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+    #scanlines {
+      position:absolute; inset:0; pointer-events:none;
+      background: repeating-linear-gradient(0deg,
+        transparent 0, transparent 50%,
+        rgba(0,0,0,0.18) 50%, rgba(0,0,0,0.18) 100%);
+    }
+    #vignette {
+      position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(ellipse at 50% 50%, transparent 52%, rgba(0,0,0,0.72) 100%);
+    }
+    #controls {
+      display:flex; gap:8px; align-items:center;
+      font-family:monospace; font-size:10px; letter-spacing:1px;
+    }
+    button {
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.22);
+      color:rgba(255,255,255,0.6); padding:4px 12px; border-radius:3px;
+      cursor:pointer; font-family:monospace; font-size:10px; letter-spacing:1px;
+    }
+    button:hover { background:rgba(255,255,255,0.14); color:#fff; }
+    button.on { border-color:#f8e818; color:#f8e818; }
+    .sep { color:rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+</div>
+
+<div id="controls">
+  <button onclick="setScale(2)">2×</button>
+  <button onclick="setScale(3)" id="b3" class="on">3×</button>
+  <button onclick="setScale(4)">4×</button>
+  <span class="sep">|</span>
+  <button onclick="togglePause()" id="bpause">⏸ Pause</button>
+  <span class="sep">|</span>
+  <button onclick="setSpeed(0.5)">½×</button>
+  <button onclick="setSpeed(1)"   id="bsp1" class="on">1×</button>
+  <button onclick="setSpeed(2)">2×</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  RÉSOLUTION SNES NATIVE
+// ═══════════════════════════════════════════════════════════════════════════
+const SW = 256, SH = 224;
+const GROUND_Y = 150;
+const STRIP_H  = 24;          // hauteur de la bande d'herbe (layer BG2)
+const STRIP_Y  = GROUND_Y - STRIP_H; // = 126
+
+const cv = document.getElementById('c');
+cv.width = SW; cv.height = SH;
+
+let SCALE = 3, paused = false, speed = 1;
+function setScale(s) {
+  SCALE = s;
+  cv.style.width  = (SW*s)+'px';
+  cv.style.height = (SH*s)+'px';
+  const wrap = document.getElementById('wrap');
+  wrap.style.width  = (SW*s)+'px';
+  wrap.style.height = (SH*s)+'px';
+  document.getElementById('scanlines').style.backgroundSize = `100% ${Math.max(2,s)*2}px`;
+  document.querySelectorAll('#controls button').forEach(b=>{
+    if(b.textContent===s+'×') b.classList.add('on');
+    else if(['2×','3×','4×'].includes(b.textContent)) b.classList.remove('on');
+  });
+}
+function togglePause() {
+  paused=!paused;
+  document.getElementById('bpause').textContent = paused ? '▶ Play' : '⏸ Pause';
+}
+function setSpeed(s) {
+  speed=s;
+  ['½×','1×','2×'].forEach(t=>{
+    document.querySelectorAll('#controls button').forEach(b=>{
+      if(b.textContent===t) b.classList.toggle('on', t===(s===0.5?'½×':s+'×'));
+    });
+  });
+}
+setScale(3);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function hexRgb(h){return[(h>>16)&0xff,(h>>8)&0xff,h&0xff];}
+function lerpHex(a,b,t){
+  const[ar,ag,ab]=hexRgb(a),[br,bg,bb]=hexRgb(b);
+  return(((ar+(br-ar)*t)|0)<<16)|(((ag+(bg-ag)*t)|0)<<8)|((ab+(bb-ab)*t)|0);
+}
+function css(h){const[r,g,b]=hexRgb(h);return`rgb(${r},${g},${b})`;}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PRIMITIVES PIXEL ART — ZÉRO ctx.arc / ctx.ellipse
+//  Chaque forme est rendue ligne par ligne avec fillRect(x,y,w,1)
+//  Le Math.round() sur la largeur crée les marches d'escalier SNES.
+// ═══════════════════════════════════════════════════════════════════════════
+function pxEllipse(ctx, cx, cy, rx, ry) {
+  const rx2 = rx*rx, ry2 = ry*ry;
+  for (let dy=-ry; dy<=ry; dy++) {
+    const dx = Math.round(rx * Math.sqrt(Math.max(0, 1-dy*dy/ry2)));
+    if (dx>0) ctx.fillRect((cx-dx)|0, (cy+dy)|0, dx*2, 1);
+  }
+}
+// Reflet : quadrant haut-gauche uniquement
+function pxHighlight(ctx, cx, cy, rx, ry) {
+  const ry2=ry*ry, stopDy=-(ry/3)|0;
+  for (let dy=-ry; dy<=stopDy; dy++) {
+    const dx=Math.round(rx*Math.sqrt(Math.max(0,1-dy*dy/ry2)));
+    const hw=(dx*0.44)|0;
+    if (hw>0) ctx.fillRect((cx-dx+1)|0,(cy+dy)|0,hw,1);
+  }
+}
+// Montagne : colonne par colonne, hauteur parabolique
+function pxMountain(ctx, peakX, baseY, halfW, peakH) {
+  for (let x=(peakX-halfW)|0; x<=(peakX+halfW)|0; x++) {
+    const t=Math.abs(x-peakX)/halfW;
+    const h=Math.round(peakH*(1-t*t));
+    if (h>0) ctx.fillRect(x,baseY-h,1,h);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PALETTE SNES ÉTÉ — ALTTP-inspired
+// ═══════════════════════════════════════════════════════════════════════════
+const P = {
+  skyTop:    0x3860d0, skyBot:    0x88b0f0,
+  mountain:  0x205828,
+  cloudBody: 0xf8f8f8, cloudOut: 0x6878a8, cloudShad: 0xa8b8d0,
+  grass1:    0x50b020, grass2:   0x60c030, grassLine: 0x389010,
+  leaf1:     0x183808, leaf2:    0x389018, leaf3:     0x60c028,
+  trunk:     0x604828, trunkShad:0x382810,
+  flower1:   0xf8f840, flower2:  0xf8f8f8,
+  hudBg:     0x102050, hudFg:    0xf8e018,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORLD DEFINITIONS (positions en pixels-monde)
+// ═══════════════════════════════════════════════════════════════════════════
+// Montagnes — period 512, scroll 0.25x
+const MTN_FAR  = [[-8,18],[40,25],[96,17],[152,23],[210,19],[262,15],[380,20],[460,26]];
+const MTN_NEAR = [[18,28],[60,38],[118,26],[176,34],[234,28],[268,22],[340,30],[430,24]];
+const MTN_PERIOD = 512;
+
+// Nuages — period 768, scroll 0.5x
+const CLOUD_POS = [[56,28,1.05],[200,22,0.90],[380,30,1.15],[580,24,0.95],[700,26,1.00]];
+const CLOUD_BLOBS = [[0,0,11],[-12,4,8],[12,4,8],[-6,-5,7],[6,-5,7],[-3,6,6],[3,6,6]];
+const CLOUD_PERIOD = 768;
+
+// Arbres — period 512, scroll 1x
+// [worldX, heightScale, hasFlowers]
+const TREE_POS = [
+  [44,1.0,1],[128,1.15,0],[220,0.90,1],[310,1.05,0],[420,1.10,1],[500,0.95,0],
+];
+const TREE_PERIOD = 512;
+
+// Fleurs au sol — period 256, scroll 1x
+const FLOWER_POS = [12,34,68,98,136,168,204,232];
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RENDU
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawSky(ctx) {
+  for (let y=0; y<GROUND_Y; y+=2) {
+    ctx.fillStyle = css(lerpHex(P.skyTop, P.skyBot, y/GROUND_Y));
+    ctx.fillRect(0, y, SW, 3);
+  }
+}
+
+function drawMountains(ctx, scroll) {
+  const off = scroll % MTN_PERIOD;
+  // Lointaines
+  ctx.fillStyle = css(lerpHex(P.mountain, P.skyBot, 0.52));
+  for (const [wx,hh] of MTN_FAR) {
+    for (let r=-1;r<=1;r++) {
+      const sx = wx - off + r*MTN_PERIOD;
+      if (sx+hh*2.2<0 || sx-hh*2.2>SW) continue;
+      pxMountain(ctx, sx, GROUND_Y, hh*2.0, hh);
+    }
+  }
+  // Proches
+  ctx.fillStyle = css(P.mountain);
+  for (const [wx,hh] of MTN_NEAR) {
+    for (let r=-1;r<=1;r++) {
+      const sx = wx - off + r*MTN_PERIOD;
+      if (sx+hh*1.9<0 || sx-hh*1.9>SW) continue;
+      pxMountain(ctx, sx, GROUND_Y, hh*1.7, hh);
+    }
+  }
+  // Crête
+  ctx.fillStyle = css(lerpHex(P.mountain,0,0.48));
+  ctx.fillRect(0, GROUND_Y-4, SW, 2);
+  ctx.fillStyle = css(lerpHex(P.mountain,0xffffff,0.30));
+  ctx.fillRect(0, GROUND_Y-5, SW, 1);
+  // Dithering horizon
+  ctx.fillStyle = css(lerpHex(lerpHex(P.skyTop,P.skyBot,0.88), P.mountain, 0.5));
+  for (let x=0;x<SW;x+=2) ctx.fillRect(x, GROUND_Y-7, 1, 1);
+  for (let x=1;x<SW;x+=2) ctx.fillRect(x, GROUND_Y-8, 1, 1);
+}
+
+function drawClouds(ctx, scroll) {
+  const off = scroll % CLOUD_PERIOD;
+  for (const [wx,cy,sc] of CLOUD_POS) {
+    for (let r=-1;r<=1;r++) {
+      const cx = wx - off + r*CLOUD_PERIOD;
+      if (cx-22*sc > SW || cx+22*sc < 0) continue;
+      // Contour
+      ctx.fillStyle = css(P.cloudOut);
+      for (const [dx,dy,r2] of CLOUD_BLOBS) {
+        const rx=Math.round((r2+1.5)*sc), ry=Math.round((r2+1.5)*sc*0.82);
+        pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+      }
+      // Corps blanc
+      ctx.fillStyle = css(P.cloudBody);
+      for (const [dx,dy,r2] of CLOUD_BLOBS) {
+        const rx=Math.round(r2*sc), ry=Math.round(r2*sc*0.82);
+        pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+      }
+      // Ombre rectangulaire
+      ctx.fillStyle = css(P.cloudShad);
+      const rw=Math.round(13*sc);
+      ctx.fillRect((cx-rw+2)|0, (cy+Math.round(9*sc))|0, rw*2-4, Math.round(3*sc));
+    }
+  }
+}
+
+// Clusters de couronne pour chaque arbre
+const TREE_CLUSTERS = [
+  [  0,-46,13,11],[-11,-37,10, 9],[ 11,-37,10, 9],
+  [ -5,-54, 9, 8],[  5,-54, 9, 8],[  0,-30, 8, 7],
+  [ -9,-27, 7, 6],[  9,-27, 7, 6],
+];
+
+function drawOneTree(ctx, sx, baseY, sc) {
+  const cl = TREE_CLUSTERS.map(([cx,cy,rx,ry])=>
+    [cx*sc|0, cy*sc|0, Math.round(rx*sc), Math.round(ry*sc)]
+  );
+  ctx.fillStyle = css(P.leaf1);
+  for (const [cx,cy,rx,ry] of cl) pxEllipse(ctx, sx+cx, baseY+cy, rx+2, ry+2);
+  ctx.fillStyle = css(P.leaf2);
+  for (const [cx,cy,rx,ry] of cl) pxEllipse(ctx, sx+cx, baseY+cy, rx, ry);
+  ctx.fillStyle = css(P.leaf3);
+  for (const [cx,cy,rx,ry] of cl) pxHighlight(ctx, sx+cx, baseY+cy, rx, ry);
+  // Tronc
+  const th=Math.round(24*sc), tw=Math.round(4*sc);
+  ctx.fillStyle = css(P.trunkShad);
+  ctx.fillRect(sx-tw/2-1|0, baseY-th, tw+2, th);
+  ctx.fillStyle = css(P.trunk);
+  ctx.fillRect(sx-tw/2|0,   baseY-th, tw,   th);
+  ctx.fillStyle = css(P.trunkShad);
+  ctx.fillRect(sx+tw/2-1|0, baseY-th, 1,    th);
+}
+
+function drawVegetation(ctx, scroll) {
+  const off = scroll % TREE_PERIOD;
+  const tW=8, tH=8;
+
+  // Bande herbe (STRIP_Y à GROUND_Y)
+  for (let x=-tW; x<SW+tW; x+=tW) {
+    const tileX = (((x + (scroll%tW|0)) / tW)|0);
+    for (let y=STRIP_Y; y<GROUND_Y; y+=tH) {
+      const alt=((tileX + ((y/tH)|0))%2===0);
+      ctx.fillStyle = alt ? css(P.grass1) : css(P.grass2);
+      ctx.fillRect(x|0, y, tW, tH);
+    }
+  }
+  ctx.fillStyle = css(P.grassLine);
+  for (let x=-tW;x<SW+tW;x+=tW) ctx.fillRect(x|0, STRIP_Y, 1, GROUND_Y-STRIP_Y);
+  for (let y=STRIP_Y;y<GROUND_Y;y+=tH) ctx.fillRect(0, y, SW, 1);
+  // Bord falaise
+  ctx.fillStyle = css(lerpHex(P.grass1,0,0.55));
+  ctx.fillRect(0, STRIP_Y-2, SW, 2);
+  ctx.fillStyle = css(lerpHex(P.grass1,0xffffff,0.55));
+  ctx.fillRect(0, STRIP_Y, SW, 1);
+
+  // Fleurs
+  const fOff = scroll % 256;
+  for (const fx of FLOWER_POS) {
+    const sx = (((fx - fOff) % 256 + 256) % 256)|0;
+    const fy = STRIP_Y + 5 + ((fx*7)%4);
+    ctx.fillStyle = css(P.flower1); ctx.fillRect(sx,fy,2,2);
+    ctx.fillStyle = css(P.flower2);
+    ctx.fillRect(sx-1,fy+1,1,1); ctx.fillRect(sx+2,fy+1,1,1);
+    ctx.fillRect(sx,fy-1,1,1);   ctx.fillRect(sx+1,fy+2,1,1);
+  }
+
+  // Arbres
+  for (const [wx,sc] of TREE_POS) {
+    for (let r=-1;r<=1;r++) {
+      const sx = wx - off + r*TREE_PERIOD;
+      if (sx<-30 || sx>SW+30) continue;
+      drawOneTree(ctx, sx|0, GROUND_Y, sc);
+    }
+  }
+}
+
+function drawGround(ctx, scroll) {
+  const tW=8, tH=8;
+  const offX = (scroll % tW)|0;
+  for (let x=-tW; x<SW+tW; x+=tW) {
+    const tileX = (((x+offX)/tW)|0);
+    for (let y=GROUND_Y; y<SH; y+=tH) {
+      const alt=((tileX + ((y/tH)|0))%2===0);
+      ctx.fillStyle = alt ? css(P.grass1) : css(P.grass2);
+      ctx.fillRect((x-offX)|0, y, tW, tH);
+    }
+  }
+  ctx.fillStyle = css(P.grassLine);
+  for (let x=-tW;x<SW+tW;x+=tW) ctx.fillRect((x-offX)|0, GROUND_Y, 1, SH-GROUND_Y);
+  for (let y=GROUND_Y;y<SH;y+=tH) ctx.fillRect(0, y, SW, 1);
+  ctx.fillStyle = css(lerpHex(P.grass1,0xffffff,0.45));
+  ctx.fillRect(0, GROUND_Y, SW, 1);
+  ctx.fillStyle = css(lerpHex(P.grass1,0,0.3));
+  ctx.fillRect(0, SH-2, SW, 2);
+}
+
+// HUD pixel art (barre du bas)
+function drawHud(ctx, fps, scroll) {
+  ctx.fillStyle = css(P.hudBg);
+  ctx.fillRect(0, SH-10, SW, 10);
+  ctx.fillStyle = css(lerpHex(P.hudBg,0,0.6));
+  ctx.fillRect(0, SH-11, SW, 1);
+  // Texte minimal via rectangles (chiffres 3×5)
+  drawHudText(ctx, `FPS:${fps|0}  X:${(scroll|0).toString().padStart(5,'0')}`, 3, SH-8, P.hudFg);
+  drawHudText(ctx, 'BG1 BG2 BG3 BG4', SW-82, SH-8, 0x4868a8);
+}
+
+// Mini-font 3×5 pixel art (chiffres + lettres basiques)
+const GLYPHS = {
+  '0':[[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+  '1':[[0,1,0],[1,1,0],[0,1,0],[0,1,0],[1,1,1]],
+  '2':[[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+  '3':[[1,1,1],[0,0,1],[1,1,1],[0,0,1],[1,1,1]],
+  '4':[[1,0,1],[1,0,1],[1,1,1],[0,0,1],[0,0,1]],
+  '5':[[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+  '6':[[1,1,1],[1,0,0],[1,1,1],[1,0,1],[1,1,1]],
+  '7':[[1,1,1],[0,0,1],[0,1,0],[0,1,0],[0,1,0]],
+  '8':[[1,1,1],[1,0,1],[1,1,1],[1,0,1],[1,1,1]],
+  '9':[[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]],
+  'F':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,0,0]],
+  'P':[[1,1,1],[1,0,1],[1,1,1],[1,0,0],[1,0,0]],
+  'S':[[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+  'X':[[1,0,1],[1,0,1],[0,1,0],[1,0,1],[1,0,1]],
+  'B':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,1,0]],
+  'G':[[1,1,1],[1,0,0],[1,0,1],[1,0,1],[1,1,1]],
+  ':':[[0],[1],[0],[1],[0]],
+  ' ':[[0],[0],[0],[0],[0]],
+};
+function drawHudText(ctx, str, x, y, color) {
+  ctx.fillStyle = css(color);
+  let px = x;
+  for (const ch of str) {
+    const g = GLYPHS[ch] || GLYPHS[' '];
+    for (let row=0; row<g.length; row++)
+      for (let col=0; col<g[row].length; col++)
+        if (g[row][col]) ctx.fillRect(px+col, y+row, 1, 1);
+    px += (g[0]?.length || 1) + 1;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BOUCLE PRINCIPALE
+// ═══════════════════════════════════════════════════════════════════════════
+let scrollX = 0;
+let lastT = 0, fps = 60;
+
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(t - lastT, 50); // cap à 50ms
+  lastT = t;
+  fps = fps*0.93 + (1000/Math.max(dt,1))*0.07;
+
+  if (!paused) scrollX += (dt/16.67) * speed;
+
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  drawSky(ctx);
+  drawMountains(ctx, scrollX * 0.25);
+  drawClouds(ctx, scrollX * 0.5);
+  drawVegetation(ctx, scrollX);
+  drawGround(ctx, scrollX);
+  drawHud(ctx, fps, scrollX);
+}
+
+requestAnimationFrame(t => { lastT=t; requestAnimationFrame(frame); });
+</script>
+</body>
+</html>

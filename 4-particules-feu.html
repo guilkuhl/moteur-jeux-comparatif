@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — Particules Massives (Feu)</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; cursor: none; }
+    #info {
+      position: fixed; top: 16px; left: 16px;
+      color: rgba(255,160,50,0.6); font-family: monospace; font-size: 13px; line-height: 2;
+      pointer-events: none;
+    }
+    #info b { color: #ffdd44; }
+    #controls {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 12px;
+    }
+    .btn {
+      background: rgba(255,100,0,0.1); border: 1px solid rgba(255,100,0,0.3);
+      color: rgba(255,200,100,0.7); padding: 8px 22px; border-radius: 999px;
+      cursor: pointer; font-family: monospace; font-size: 12px;
+    }
+    .btn:hover { background: rgba(255,100,0,0.25); color: #fff; }
+    .btn.active { border-color: #ff8833; color: #ffcc44; }
+    a.back {
+      position: fixed; top: 16px; right: 16px;
+      color: rgba(255,255,255,0.25); font-family: monospace; font-size: 12px; text-decoration: none;
+    }
+    a.back:hover { color: #fff; }
+    #flame-cursor {
+      position: fixed; pointer-events: none; font-size: 28px;
+      transform: translate(-50%, -50%); z-index: 100; transition: none;
+    }
+  </style>
+</head>
+<body>
+<div id="flame-cursor">🔥</div>
+<div id="info">
+  🔥 Particules GPU : <b id="count">0</b><br>
+  Mode : <b id="mode-lbl">FEU</b>
+</div>
+<div id="controls">
+  <button class="btn active" id="btn-fire"   onclick="setFx('fire')">🔥 Feu</button>
+  <button class="btn"        id="btn-plasma"  onclick="setFx('plasma')">⚡ Plasma</button>
+  <button class="btn"        id="btn-snow"    onclick="setFx('blizzard')">❄️ Blizzard</button>
+  <button class="btn"        id="btn-multi"   onclick="setFx('multi')">✨ Multi-sources</button>
+</div>
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const MAX_P = 18_000;
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+const app = new PIXI.Application({ width: W, height: H, backgroundColor: 0x000000, antialias: false });
+document.body.appendChild(app.view);
+
+// ─── SpriteGPULayer avec blending additif ─────────────────────────────────────
+// Le mode ADD fait que les couleurs s'accumulent → cœur brillant naturel
+const gpuLayer = new PIXI.ParticleContainer(MAX_P, {
+  scale: true, position: true, alpha: true, tint: true,
+});
+gpuLayer.blendMode = PIXI.BLEND_MODES.ADD;
+app.stage.addChild(gpuLayer);
+
+// ─── Texture ──────────────────────────────────────────────────────────────────
+function makeGlowTex() {
+  const size = 32;
+  const g = new PIXI.Graphics();
+  // Dégradé radial simulé via plusieurs cercles semi-transparents
+  for (let r = size; r > 0; r -= 4) {
+    const t = r / size;
+    g.beginFill(0xffffff, (1 - t) * 0.55 + 0.02);
+    g.drawCircle(0, 0, r);
+    g.endFill();
+  }
+  return app.renderer.generateTexture(g, { scaleMode: PIXI.SCALE_MODES.LINEAR });
+}
+const GLOW_TEX = makeGlowTex();
+
+// ─── Pool d'objets (évite les allocations GC) ─────────────────────────────────
+const pool   = [];
+const active = [];
+
+function acquire() {
+  if (pool.length > 0) return pool.pop();
+  const sprite = new PIXI.Sprite(GLOW_TEX);
+  sprite.anchor.set(0.5);
+  return { sprite, x:0, y:0, vx:0, vy:0, life:0, maxLife:1, size:1, type:'fire' };
+}
+function release(p) {
+  if (p.sprite.parent) gpuLayer.removeChild(p.sprite);
+  pool.push(p);
+}
+
+// ─── Bruit pour turbulence (hash rapide) ──────────────────────────────────────
+function hash(x, y) {
+  let v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+function turbulence(x, y, t) {
+  return (
+    Math.sin(x * 0.04 + t * 1.2) * Math.cos(y * 0.03 + t * 0.7)
+    + Math.sin(x * 0.09 - t * 0.8) * 0.5
+    + (hash(Math.floor(x/20), Math.floor(y/30)) - 0.5) * 0.4
+  );
+}
+
+// ─── Couleurs ─────────────────────────────────────────────────────────────────
+function lerp(a, b, t) { return a + (b-a)*t; }
+function lerpColor(c1, c2, t) {
+  return {
+    r: Math.round(lerp(c1[0], c2[0], t)),
+    g: Math.round(lerp(c1[1], c2[1], t)),
+    b: Math.round(lerp(c1[2], c2[2], t)),
+  };
+}
+const FIRE_RAMP = [
+  [255, 255, 220],  // 0%  : blanc chaud (cœur)
+  [255, 210,  40],  // 25% : jaune
+  [255, 120,   0],  // 50% : orange
+  [200,  20,   0],  // 75% : rouge
+  [ 60,   0,   0],  // 100%: rouge sombre
+];
+const PLASMA_RAMP = [
+  [200, 200, 255],
+  [120,  50, 255],
+  [ 20, 150, 255],
+  [  0, 200, 200],
+  [  0,  50, 100],
+];
+const BLIZZARD_RAMP = [
+  [255, 255, 255],
+  [200, 230, 255],
+  [150, 200, 255],
+  [ 80, 130, 200],
+  [ 20,  40,  80],
+];
+
+function sampleRamp(ramp, t) {
+  const n = ramp.length - 1;
+  const i = Math.min(Math.floor(t * n), n-1);
+  const f = t * n - i;
+  const c = lerpColor(ramp[i], ramp[i+1], f);
+  return (c.r << 16) | (c.g << 8) | c.b;
+}
+
+// ─── État ─────────────────────────────────────────────────────────────────────
+let mx = W/2, my = H;
+let fx = 'fire';
+let time = 0;
+
+const FX_SETTINGS = {
+  fire:     { ramp: FIRE_RAMP,     emitRate: 280, upwardBias: true,  spread: 90,  bg: 0x000000 },
+  plasma:   { ramp: PLASMA_RAMP,   emitRate: 200, upwardBias: false, spread: 60,  bg: 0x000510 },
+  blizzard: { ramp: BLIZZARD_RAMP, emitRate: 350, upwardBias: false, spread: 200, bg: 0x050a15 },
+  multi:    { ramp: FIRE_RAMP,     emitRate: 200, upwardBias: true,  spread: 60,  bg: 0x000000 },
+};
+
+function setFx(name) {
+  fx = name;
+  ['fire','plasma','blizzard','multi'].forEach(id => {
+    const el = document.getElementById('btn-'+id);
+    if (el) el.classList.toggle('active', id === name);
+  });
+  document.getElementById('mode-lbl').textContent = name.toUpperCase();
+  app.renderer.backgroundColor = FX_SETTINGS[name].bg;
+}
+setFx('fire');
+
+// Positions des sources multiples (mode multi)
+const MULTI_SOURCES = [
+  { x: W*0.2,  y: H,      phase: 0 },
+  { x: W*0.5,  y: H,      phase: 1.2 },
+  { x: W*0.8,  y: H,      phase: 2.4 },
+  { x: W*0.35, y: H*0.6,  phase: 0.6 },
+  { x: W*0.65, y: H*0.6,  phase: 1.8 },
+];
+
+function emitParticle(ex, ey, settings) {
+  if (active.length >= MAX_P) return;
+  const p = acquire();
+
+  p.x  = ex + (Math.random() - 0.5) * settings.spread;
+  p.y  = ey;
+  p.vx = (Math.random() - 0.5) * 1.8;
+  p.vy = settings.upwardBias
+    ? -(Math.random() * 3.5 + 1.8)
+    : (Math.random() - 0.5) * 2.5;
+  p.life    = 0;
+  p.maxLife = 0.5 + Math.random() * 0.9;
+  p.size    = 0.4 + Math.random() * 1.8;
+  p.ramp    = settings.ramp;
+
+  p.sprite.alpha = 1;
+  p.sprite.scale.set(p.size * 0.5);
+  p.sprite.tint  = 0xffffff;
+  if (!p.sprite.parent) gpuLayer.addChild(p.sprite);
+  active.push(p);
+}
+
+// Flamme curseur
+const flameCursor = document.getElementById('flame-cursor');
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  flameCursor.style.left = mx + 'px';
+  flameCursor.style.top  = my + 'px';
+});
+document.addEventListener('touchmove', e => {
+  mx = e.touches[0].clientX; my = e.touches[0].clientY;
+}, { passive: true });
+
+// ─── Boucle principale ────────────────────────────────────────────────────────
+app.ticker.add((delta) => {
+  time += 0.016;
+  const cfg = FX_SETTINGS[fx];
+
+  // ── Émission ─────────────────────────────────────────────────────────────
+  if (fx === 'multi') {
+    for (const src of MULTI_SOURCES) {
+      const n = Math.floor(cfg.emitRate / MULTI_SOURCES.length);
+      for (let i = 0; i < n; i++) emitParticle(src.x, src.y, cfg);
+    }
+  } else {
+    for (let i = 0; i < cfg.emitRate; i++) emitParticle(mx, my, cfg);
+  }
+
+  // ── Mise à jour ───────────────────────────────────────────────────────────
+  for (let i = active.length - 1; i >= 0; i--) {
+    const p = active[i];
+
+    // Turbulence
+    const turb = turbulence(p.x, p.y, time);
+    p.vx += turb * 0.28 + (Math.random() - 0.5) * 0.08;
+    if (cfg.upwardBias) p.vy -= 0.04;
+    p.vx *= 0.975;
+    p.vy *= 0.975;
+
+    p.x    += p.vx;
+    p.y    += p.vy;
+    p.life += delta * 0.017;
+
+    const age = Math.min(p.life / p.maxLife, 1);
+
+    // Taille : pic à 30% de la vie, rétrécit ensuite
+    const sz = age < 0.3
+      ? (age / 0.3) * p.size
+      : (1 - (age - 0.3) / 0.7) * p.size;
+    p.sprite.scale.set(Math.max(0.01, sz));
+
+    // Couleur et alpha
+    p.sprite.tint  = sampleRamp(p.ramp, age);
+    p.sprite.alpha = Math.pow(1 - age, 0.7) * 0.9;
+    p.sprite.x     = p.x;
+    p.sprite.y     = p.y;
+
+    if (p.life >= p.maxLife) {
+      release(p);
+      active.splice(i, 1);
+    }
+  }
+
+  document.getElementById('count').textContent = active.length.toLocaleString();
+});
+</script>
+</body>
+</html>

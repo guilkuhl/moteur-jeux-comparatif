@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PhaserBenchmark</string>
+    <string name="title_activity_main">PhaserBenchmark</string>
+    <string name="package_name">com.benchmark.phaser</string>
+    <string name="custom_url_scheme">com.benchmark.phaser</string>
+</resources>

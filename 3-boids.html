@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — Boids (Craig Reynolds)</title>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #030508; overflow: hidden; cursor: none; }
+    canvas { position: fixed; top: 0; left: 0; display: block; }
+    #info {
+      position: fixed; top: 16px; left: 16px; z-index: 10;
+      color: rgba(120,200,255,0.65); font-family: monospace; font-size: 12px; line-height: 2;
+      pointer-events: none;
+    }
+    #info b { color: #55ddff; }
+    #controls {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
+      display: flex; gap: 12px;
+    }
+    .btn {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.6); padding: 8px 22px; border-radius: 999px;
+      cursor: pointer; font-family: monospace; font-size: 12px;
+    }
+    .btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .btn.active { border-color: #55ddff; color: #55ddff; }
+    a.back {
+      position: fixed; top: 16px; right: 16px; z-index: 10;
+      color: rgba(255,255,255,0.25); font-family: monospace; font-size: 12px; text-decoration: none;
+    }
+    a.back:hover { color: #fff; }
+    #cursor {
+      position: fixed; pointer-events: none; z-index: 200;
+      width: 28px; height: 28px; margin: -14px 0 0 -14px;
+      border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.5);
+      transition: transform 0.15s, border-color 0.2s;
+    }
+  </style>
+</head>
+<body>
+<div id="cursor"></div>
+<div id="info">
+  🐦 Boids : <b id="count">2000</b><br>
+  FPS : <b id="fps">60</b><br>
+  Mode : <b id="mouse-mode">neutre</b>
+</div>
+<div id="controls">
+  <button class="btn active" id="btn-neutral" onclick="setMode('neutral')">⬤ Neutre</button>
+  <button class="btn" id="btn-attract" onclick="setMode('attract')">⊕ Attirer</button>
+  <button class="btn" id="btn-repel"   onclick="setMode('repel')">⊖ Repousser</button>
+  <button class="btn" id="btn-scatter" onclick="setMode('scatter')">💥 Disperser</button>
+</div>
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const NUM = 2000;
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+const app = new PIXI.Application({
+  width: W, height: H,
+  backgroundColor: 0x030508,
+  antialias: false,
+});
+// Forcer le canvas en position fixe plein écran
+app.view.style.position = 'fixed';
+app.view.style.top  = '0';
+app.view.style.left = '0';
+document.body.appendChild(app.view);
+
+// ─── Container GPU ────────────────────────────────────────────────────────────
+// ParticleContainer = 1 seul draw call WebGL pour tous les sprites
+const gpuLayer = new PIXI.ParticleContainer(NUM + 100, {
+  position: true,
+  rotation: true,
+  scale:    true,
+  tint:     true,
+  alpha:    false, // désactivé pour éviter les bugs selon le driver
+});
+app.stage.addChild(gpuLayer);
+
+// ─── Texture boid : triangle simple ───────────────────────────────────────────
+// On utilise un triangle convexe (pas de concavité = rendu garanti)
+const boidGfx = new PIXI.Graphics();
+boidGfx.beginFill(0xffffff);
+boidGfx.drawPolygon([0, -10, 5, 8, -5, 8]); // triangle pointe en haut
+boidGfx.endFill();
+const BOID_TEX = app.renderer.generateTexture(boidGfx);
+boidGfx.destroy();
+
+// ─── Paramètres flocking ──────────────────────────────────────────────────────
+const MAX_SPEED = 3.6;
+const MIN_SPEED = 1.5;
+const VIEW_R    = 70;
+const SEP_R     = 20;
+const CELL_SIZE = VIEW_R;
+
+// ─── Grille spatiale O(n·k) ───────────────────────────────────────────────────
+class SpatialGrid {
+  constructor(cs) { this.cs = cs; this.cells = new Map(); }
+  clear() { this.cells.clear(); }
+  key(x, y) { return `${Math.floor(x/this.cs)},${Math.floor(y/this.cs)}`; }
+  insert(b) {
+    const k = this.key(b.x, b.y);
+    if (!this.cells.has(k)) this.cells.set(k, []);
+    this.cells.get(k).push(b);
+  }
+  query(x, y) {
+    const cx = Math.floor(x/this.cs), cy = Math.floor(y/this.cs);
+    const out = [];
+    for (let dx = -2; dx <= 2; dx++)
+      for (let dy = -2; dy <= 2; dy++) {
+        const cell = this.cells.get(`${cx+dx},${cy+dy}`);
+        if (cell) for (let i = 0; i < cell.length; i++) out.push(cell[i]);
+      }
+    return out;
+  }
+}
+const grid = new SpatialGrid(CELL_SIZE);
+
+// ─── Initialisation des boids ─────────────────────────────────────────────────
+const boids = [];
+for (let i = 0; i < NUM; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
+  const bx    = Math.random() * W;
+  const by    = Math.random() * H;
+
+  const sprite = new PIXI.Sprite(BOID_TEX);
+  sprite.anchor.set(0.5, 0.6);  // pivot légèrement vers la base
+  sprite.scale.set(0.65 + Math.random() * 0.45);
+  // Position initiale explicitement définie
+  sprite.x = bx;
+  sprite.y = by;
+  sprite.rotation = angle + Math.PI * 0.5;
+  sprite.tint = 0x2288ff;
+  gpuLayer.addChild(sprite);
+
+  boids.push({
+    x: bx, y: by,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    sprite,
+  });
+}
+
+// ─── Souris ───────────────────────────────────────────────────────────────────
+let mx = W / 2, my = H / 2;
+let mouseMode = 'neutral';
+const cursorEl = document.getElementById('cursor');
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursorEl.style.left = mx + 'px';
+  cursorEl.style.top  = my + 'px';
+});
+
+const CURSOR_COLORS = {
+  neutral: 'rgba(255,255,255,0.5)',
+  attract: 'rgba(80,255,180,0.9)',
+  repel:   'rgba(255,80,80,0.9)',
+  scatter: 'rgba(255,220,50,0.9)',
+};
+
+function setMode(m) {
+  mouseMode = m;
+  document.getElementById('mouse-mode').textContent = m;
+  ['neutral','attract','repel','scatter'].forEach(id => {
+    document.getElementById('btn-'+id).classList.toggle('active', id === m);
+  });
+  cursorEl.style.borderColor = CURSOR_COLORS[m];
+  cursorEl.style.transform   = m !== 'neutral' ? 'scale(1.7)' : 'scale(1)';
+}
+setMode('neutral');
+
+// ─── Couleur selon vitesse (lent=bleu → rapide=cyan/vert) ────────────────────
+function speedTint(spd) {
+  const t = Math.max(0, Math.min(1, (spd - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)));
+  const r = Math.round(t * 120);
+  const g = Math.round(150 + t * 105);
+  const b = Math.round(255 - t * 180);
+  return (r << 16) | (g << 8) | b;
+}
+
+// ─── FPS ──────────────────────────────────────────────────────────────────────
+let fpsSmooth = 60;
+const fpsEl = document.getElementById('fps');
+
+// ─── Boucle principale ────────────────────────────────────────────────────────
+app.ticker.add(() => {
+  fpsSmooth = fpsSmooth * 0.92 + app.ticker.FPS * 0.08;
+  fpsEl.textContent = Math.round(fpsSmooth);
+
+  // Reconstruire la grille
+  grid.clear();
+  for (let i = 0; i < NUM; i++) grid.insert(boids[i]);
+
+  for (let i = 0; i < NUM; i++) {
+    const b = boids[i];
+    const neighbors = grid.query(b.x, b.y);
+
+    let sepX=0, sepY=0, sepN=0;
+    let aliVx=0, aliVy=0, aliN=0;
+    let cohX=0,  cohY=0,  cohN=0;
+
+    for (let j = 0; j < neighbors.length; j++) {
+      const o = neighbors[j];
+      if (o === b) continue;
+      const dx = b.x - o.x, dy = b.y - o.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < SEP_R * SEP_R && d2 > 0) {
+        const d = Math.sqrt(d2);
+        sepX += dx/d; sepY += dy/d; sepN++;
+      }
+      if (d2 < VIEW_R * VIEW_R) {
+        aliVx += o.vx; aliVy += o.vy; aliN++;
+        cohX  += o.x;  cohY  += o.y;  cohN++;
+      }
+    }
+
+    let fx = 0, fy = 0;
+    if (sepN > 0) { fx += sepX/sepN * 0.10; fy += sepY/sepN * 0.10; }
+    if (aliN > 0) { fx += (aliVx/aliN - b.vx) * 0.04; fy += (aliVy/aliN - b.vy) * 0.04; }
+    if (cohN > 0) { fx += (cohX/cohN - b.x) * 0.0012; fy += (cohY/cohN - b.y) * 0.0012; }
+
+    // Interaction souris
+    if (mouseMode !== 'neutral') {
+      const dx = mx - b.x, dy = my - b.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < 200*200) {
+        const d = Math.sqrt(d2) + 1;
+        if (mouseMode === 'attract') { fx += dx/d * 0.07; fy += dy/d * 0.07; }
+        if (mouseMode === 'repel')   { fx -= dx/d * 0.14; fy -= dy/d * 0.14; }
+        if (mouseMode === 'scatter') {
+          const rnd = Math.random() * Math.PI * 2;
+          fx += Math.cos(rnd) * 0.28; fy += Math.sin(rnd) * 0.28;
+        }
+      }
+    }
+
+    b.vx += fx; b.vy += fy;
+
+    const spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+    if (spd > MAX_SPEED && spd > 0) { b.vx = b.vx/spd*MAX_SPEED; b.vy = b.vy/spd*MAX_SPEED; }
+    if (spd < MIN_SPEED && spd > 0) { b.vx = b.vx/spd*MIN_SPEED; b.vy = b.vy/spd*MIN_SPEED; }
+
+    b.x += b.vx; b.y += b.vy;
+    // Wrapping toroïdal
+    if (b.x < 0) b.x += W; else if (b.x > W) b.x -= W;
+    if (b.y < 0) b.y += H; else if (b.y > H) b.y -= H;
+
+    b.sprite.x        = b.x;
+    b.sprite.y        = b.y;
+    b.sprite.rotation = Math.atan2(b.vy, b.vx) + Math.PI * 0.5;
+    b.sprite.tint     = speedTint(spd || MIN_SPEED);
+  }
+});
+</script>
+</body>
+</html>

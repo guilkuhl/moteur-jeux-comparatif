@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — Débris & Explosions</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #08080f; overflow: hidden; cursor: crosshair; }
+    #info {
+      position: fixed; top: 16px; left: 16px;
+      color: rgba(255,255,255,0.55); font-family: monospace; font-size: 13px; line-height: 2;
+      pointer-events: none; user-select: none;
+    }
+    #info b { color: #ff8833; }
+    #hint {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.3); font-family: monospace; font-size: 12px;
+      pointer-events: none;
+    }
+    a.back {
+      position: fixed; top: 16px; right: 16px;
+      color: rgba(255,255,255,0.3); font-family: monospace; font-size: 12px;
+      text-decoration: none;
+    }
+    a.back:hover { color: #fff; }
+  </style>
+</head>
+<body>
+<div id="info">
+  Sprites GPU actifs : <b id="count">0</b><br>
+  Explosions : <b id="expl">0</b>
+</div>
+<div id="hint">🖱 Cliquez (ou maintenez) pour exploser · Maintenez pour explosion continue</div>
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+const W = window.innerWidth, H = window.innerHeight;
+const FLOOR_Y = H - 60;
+
+const app = new PIXI.Application({
+  width: W, height: H,
+  backgroundColor: 0x08080f,
+  antialias: false,
+  resolution: 1,
+});
+document.body.appendChild(app.view);
+
+// Sol
+const floorGfx = new PIXI.Graphics();
+floorGfx.beginFill(0x14101a);
+floorGfx.drawRect(0, FLOOR_Y, W, H - FLOOR_Y);
+floorGfx.endFill();
+// Ligne lumineuse sur le sol
+floorGfx.lineStyle(1, 0x441133, 0.5);
+floorGfx.moveTo(0, FLOOR_Y);
+floorGfx.lineTo(W, FLOOR_Y);
+app.stage.addChild(floorGfx);
+
+// ─── SpriteGPULayer ──────────────────────────────────────────────────────────
+// Un seul draw call GPU pour tous les débris, quelque soit leur nombre
+const gpuLayer = new PIXI.ParticleContainer(80_000, {
+  scale: true,
+  position: true,
+  rotation: true,
+  alpha: true,
+  tint: true,
+});
+app.stage.addChild(gpuLayer);
+
+// ─── Textures ────────────────────────────────────────────────────────────────
+function makeTex(shape, size, color) {
+  const g = new PIXI.Graphics();
+  g.beginFill(color);
+  if (shape === 'tri')  g.drawPolygon([0, -size, size*0.85, size*0.9, -size*0.85, size*0.9]);
+  if (shape === 'rect') g.drawRect(-size*0.8, -size*0.4, size*1.6, size*0.8);
+  if (shape === 'dot')  g.drawCircle(0, 0, size * 0.45);
+  if (shape === 'shard')g.drawPolygon([0,-size, size*0.3, size*0.2, 0,size*0.6, -size*0.3, size*0.2]);
+  g.endFill();
+  return app.renderer.generateTexture(g);
+}
+const TEXTURES = [
+  makeTex('tri',   8, 0xffffff),
+  makeTex('tri',   6, 0xff9944),
+  makeTex('rect',  7, 0xff5522),
+  makeTex('rect',  5, 0xffcc33),
+  makeTex('dot',   5, 0xffffff),
+  makeTex('dot',   3, 0xff6600),
+  makeTex('shard', 9, 0xff3311),
+  makeTex('shard', 6, 0xffaa00),
+];
+
+// Textures de braises (petites étincelles)
+const SPARK_TEX = makeTex('dot', 2, 0xffffff);
+
+// ─── Pool & particules ────────────────────────────────────────────────────────
+const particles = [];
+let totalExplosions = 0;
+
+function spawnExplosion(cx, cy, big = false) {
+  totalExplosions++;
+  const count      = big ? 500 : 280;
+  const power      = big ? 9   : 6;
+  const sparkCount = big ? 120 : 60;
+
+  // Débris principaux
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * power + 0.8;
+    const tex   = TEXTURES[Math.floor(Math.random() * TEXTURES.length)];
+    const sprite = new PIXI.Sprite(tex);
+    sprite.anchor.set(0.5);
+    sprite.position.set(cx, cy);
+    sprite.scale.set(Math.random() * 1.4 + 0.25);
+    sprite.rotation = Math.random() * Math.PI * 2;
+
+    const p = {
+      sprite,
+      vx: Math.cos(angle) * speed * (0.6 + Math.random() * 0.8),
+      vy: Math.sin(angle) * speed - Math.random() * power * 0.7,
+      rot: (Math.random() - 0.5) * 0.22,
+      grav: 0.16 + Math.random() * 0.1,
+      drag: 0.988 + Math.random() * 0.008,
+      life: 1,
+      decay: 0.007 + Math.random() * 0.011,
+      bounces: 0,
+      spark: false,
+    };
+    gpuLayer.addChild(sprite);
+    particles.push(p);
+  }
+
+  // Étincelles
+  for (let i = 0; i < sparkCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * power * 1.4 + 1;
+    const sprite = new PIXI.Sprite(SPARK_TEX);
+    sprite.anchor.set(0.5);
+    sprite.position.set(cx, cy);
+    sprite.scale.set(0.5 + Math.random() * 1.5);
+
+    const p = {
+      sprite,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - Math.random() * 4,
+      rot: 0,
+      grav: 0.12,
+      drag: 0.992,
+      life: 1,
+      decay: 0.018 + Math.random() * 0.02,
+      bounces: 3, // pas de rebond
+      spark: true,
+    };
+    gpuLayer.addChild(sprite);
+    particles.push(p);
+  }
+
+  document.getElementById('expl').textContent = totalExplosions;
+}
+
+// ─── Boucle principale ────────────────────────────────────────────────────────
+app.ticker.add((delta) => {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy   += p.grav;
+    p.vx   *= p.drag;
+    p.vy   *= p.drag;
+    p.sprite.x += p.vx;
+    p.sprite.y += p.vy;
+    p.sprite.rotation += p.rot;
+
+    // Rebond sol
+    if (p.sprite.y >= FLOOR_Y && p.bounces < 2) {
+      p.sprite.y = FLOOR_Y;
+      p.vy      *= -0.38;
+      p.vx      *= 0.65;
+      p.rot     *= 0.45;
+      p.bounces++;
+      p.decay   *= 1.5; // s'estompe plus vite après rebond
+    }
+
+    p.life -= p.decay;
+    p.sprite.alpha = Math.max(0, p.life * p.life);
+
+    if (p.life <= 0) {
+      gpuLayer.removeChild(p.sprite);
+      p.sprite.destroy();
+      particles.splice(i, 1);
+    }
+  }
+  document.getElementById('count').textContent = particles.length.toLocaleString();
+});
+
+// ─── Interactions ─────────────────────────────────────────────────────────────
+let holding = false;
+let holdInterval = null;
+
+app.view.addEventListener('mousedown', e => {
+  holding = true;
+  spawnExplosion(e.clientX, e.clientY, false);
+  holdInterval = setInterval(() => {
+    if (holding) spawnExplosion(
+      lastX + (Math.random()-0.5)*40,
+      lastY + (Math.random()-0.5)*40
+    );
+  }, 180);
+});
+app.view.addEventListener('mouseup', () => { holding = false; clearInterval(holdInterval); });
+app.view.addEventListener('mousemove', e => { lastX = e.clientX; lastY = e.clientY; });
+
+let lastX = W/2, lastY = H/2;
+
+// Explosions de démo au démarrage
+setTimeout(() => spawnExplosion(W*0.35, H*0.45, true), 400);
+setTimeout(() => spawnExplosion(W*0.65, H*0.55, false), 900);
+setTimeout(() => spawnExplosion(W*0.5,  H*0.35, false), 1400);
+</script>
+</body>
+</html>

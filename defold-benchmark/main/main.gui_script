@@ -1,0 +1,19 @@
+-- main.gui_script
+-- Mise à jour du HUD (FPS + nombre de sprites)
+
+function init(self)
+	self.fps_node = gui.get_node("fps_label")
+	self.count_node = gui.get_node("count_label")
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("update_stats") then
+		gui.set_text(self.fps_node, "FPS: " .. message.fps)
+		gui.set_text(self.count_node, "Sprites: " .. message.count)
+		if message.alert then
+			gui.set_color(self.fps_node, vmath.vector4(1, 0, 0, 1))
+			gui.set_color(self.count_node, vmath.vector4(1, 0, 0, 1))
+			gui.set_text(self.fps_node, "FPS: " .. message.fps .. "  [STOP — FPS < 20]")
+		end
+	end
+end

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Pixel Art SNES</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; gap: 12px; padding: 16px;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      display: block;
+    }
+    #controls {
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    }
+    button {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.22);
+      color: rgba(255,255,255,0.7); padding: 5px 14px; border-radius: 3px;
+      cursor: pointer; font-family: monospace; font-size: 11px; letter-spacing: 1px;
+    }
+    button:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    button.active { border-color: #f8e818; color: #f8e818; }
+    #info { font-family: monospace; font-size: 10px; color: rgba(255,255,255,0.3); }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="controls">
+  <button onclick="setScale(1)">1×</button>
+  <button onclick="setScale(2)">2×</button>
+  <button class="active" onclick="setScale(3)">3×</button>
+  <button onclick="setScale(4)">4×</button>
+  <button onclick="setScale(5)">5×</button>
+  <span style="color:rgba(255,255,255,0.15);font-family:monospace">|</span>
+  <button onclick="reDraw()">↺ Redraw</button>
+</div>
+<div id="info">256×224 · pixel art SNES · image-rendering: pixelated</div>
+
+<script>
+// ── Résolution native SNES ────────────────────────────────────────────────
+const SW = 256, SH = 224;
+const GROUND_Y = 150;
+
+const cv = document.getElementById('c');
+cv.width  = SW;
+cv.height = SH;
+let SCALE = 3;
+
+function setScale(s) {
+  SCALE = s;
+  cv.style.width  = (SW * s) + 'px';
+  cv.style.height = (SH * s) + 'px';
+  document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+setScale(3);
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function hexRgb(h) { return [(h>>16)&0xff, (h>>8)&0xff, h&0xff]; }
+function lerpHex(a, b, t) {
+  const [ar,ag,ab] = hexRgb(a), [br,bg,bb] = hexRgb(b);
+  return (((ar+(br-ar)*t)|0)<<16)|(((ag+(bg-ag)*t)|0)<<8)|((ab+(bb-ab)*t)|0);
+}
+function css(h) { const [r,g,b] = hexRgb(h); return `rgb(${r},${g},${b})`; }
+
+// ── Primitives pixel art (zéro antialiasing) ──────────────────────────────
+// Ellipse scanline : chaque ligne = 1 fillRect de largeur arrondie
+function pxEllipse(ctx, cx, cy, rx, ry) {
+  for (let dy = -ry; dy <= ry; dy++) {
+    const dx = Math.round(rx * Math.sqrt(Math.max(0, 1 - dy*dy / (ry*ry + 0.001))));
+    if (dx > 0) ctx.fillRect((cx-dx)|0, (cy+dy)|0, dx*2, 1);
+  }
+}
+// Reflet : quadrant haut-gauche (45% largeur, 1/3 hauteur)
+function pxHighlight(ctx, cx, cy, rx, ry) {
+  const stopDy = -(ry/3)|0;
+  for (let dy = -ry; dy <= stopDy; dy++) {
+    const dx = Math.round(rx * Math.sqrt(Math.max(0, 1 - dy*dy / (ry*ry + 0.001))));
+    const hw = (dx * 0.44)|0;
+    if (hw > 0) ctx.fillRect((cx-dx+1)|0, (cy+dy)|0, hw, 1);
+  }
+}
+// Montagne pixel art : colonne par colonne, hauteur parabolique
+function pxMountain(ctx, peakX, baseY, halfW, peakH) {
+  for (let x = (peakX-halfW)|0; x <= (peakX+halfW)|0; x++) {
+    const t = Math.abs(x - peakX) / halfW;
+    const h = Math.round(peakH * (1 - t*t));
+    if (h > 0) ctx.fillRect(x, baseY-h, 1, h);
+  }
+}
+
+// ── Palette SNES été (style ALTTP) ────────────────────────────────────────
+const P = {
+  skyTop:     0x3860d0,
+  skyBot:     0x88b0f0,
+  mountain:   0x205828,
+  cloudColor: 0xf8f8f8,
+  cloudOut:   0x6878a8,
+  cloudShad:  0xa8b8d0,
+  grassTile1: 0x50b020,
+  grassTile2: 0x60c030,
+  grassGrid:  0x389010,
+  leafDark:   0x183808,
+  leafMid:    0x389018,
+  leafLight:  0x60c028,
+  trunkA:     0x604828,
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+function draw() {
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // ── 1. Ciel : gradient en bandes de 2px ──────────────────────────────
+  for (let y = 0; y < GROUND_Y; y += 2) {
+    ctx.fillStyle = css(lerpHex(P.skyTop, P.skyBot, y / GROUND_Y));
+    ctx.fillRect(0, y, SW, 3);
+  }
+
+  // ── 2. Montagnes lointaines (pixel art) ───────────────────────────────
+  // Couche arrière (plus claires)
+  ctx.fillStyle = css(lerpHex(P.mountain, P.skyBot, 0.52));
+  const hf = [[-8,18],[40,25],[96,17],[152,23],[210,19],[262,15]];
+  for (const [hx,hh] of hf) pxMountain(ctx, hx, GROUND_Y, hh*2.0, hh);
+  // Couche avant (plus sombres)
+  ctx.fillStyle = css(P.mountain);
+  const mts = [[18,28],[60,38],[118,26],[176,34],[234,28],[268,22]];
+  for (const [mx,mh] of mts) pxMountain(ctx, mx, GROUND_Y, mh*1.7, mh);
+  // Crête : 1px sombre + 1px reflet
+  ctx.fillStyle = css(lerpHex(P.mountain, 0x000000, 0.48));
+  ctx.fillRect(0, GROUND_Y-4, SW, 2);
+  ctx.fillStyle = css(lerpHex(P.mountain, 0xffffff, 0.30));
+  ctx.fillRect(0, GROUND_Y-5, SW, 1);
+  // Dithering checkerboard à l'horizon
+  const dCol = lerpHex(lerpHex(P.skyTop, P.skyBot, 0.88), P.mountain, 0.5);
+  ctx.fillStyle = css(dCol);
+  for (let x=0; x<SW; x+=2) ctx.fillRect(x, GROUND_Y-7, 1, 1);
+  for (let x=1; x<SW; x+=2) ctx.fillRect(x, GROUND_Y-8, 1, 1);
+
+  // ── 3. Nuages (pixel art) ─────────────────────────────────────────────
+  const cloudDefs = [[48,30,1.05],[148,20,0.88],[248,26,1.1]];
+  const blobs = [[0,0,12],[-13,5,8],[13,5,8],[-6,-5,7],[6,-5,7],[-3,7,6],[3,7,6]];
+  for (const [cx,cy,sc] of cloudDefs) {
+    // Pass 1 : contour
+    ctx.fillStyle = css(P.cloudOut);
+    for (const [dx,dy,r] of blobs) {
+      const rx = Math.round((r+1.5)*sc), ry = Math.round((r+1.5)*sc*0.82);
+      pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+    }
+    // Pass 2 : blanc pur
+    ctx.fillStyle = css(P.cloudColor);
+    for (const [dx,dy,r] of blobs) {
+      const rx = Math.round(r*sc), ry = Math.round(r*sc*0.82);
+      pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+    }
+    // Ombre rectangulaire (SNES = rectangle, pas ellipse)
+    ctx.fillStyle = css(P.cloudShad);
+    const rw = Math.round(13*sc);
+    ctx.fillRect(cx-rw+2, (cy+Math.round(9*sc))|0, rw*2-4, Math.round(3*sc));
+  }
+
+  // ── 4. Bande végétation (dalles + arbres) ─────────────────────────────
+  const VH = 72, VY = GROUND_Y - VH;  // canvas virtuel : y=150-72=78
+  const grassTop = VY + VH - 24;       // = 126 en screen Y
+
+  // Dalles de gazon (8×8, damier)
+  const tW=8, tH=8;
+  for (let x=0; x<SW; x+=tW) {
+    for (let y=grassTop; y<GROUND_Y; y+=tH) {
+      const alt = ((x/tW + y/tH)%2 === 0);
+      ctx.fillStyle = alt ? css(P.grassTile1) : css(P.grassTile2);
+      ctx.fillRect(x, y, tW, tH);
+    }
+  }
+  // Grille de dalles
+  ctx.fillStyle = css(P.grassGrid);
+  for (let x=0; x<SW; x+=tW)  ctx.fillRect(x, grassTop, 1, GROUND_Y-grassTop);
+  for (let y=grassTop; y<GROUND_Y; y+=tH) ctx.fillRect(0, y, SW, 1);
+  // Bord de falaise
+  ctx.fillStyle = css(lerpHex(P.grassTile1, 0x000000, 0.55));
+  ctx.fillRect(0, grassTop-2, SW, 2);
+  ctx.fillStyle = css(lerpHex(P.grassTile1, 0xffffff, 0.55));
+  ctx.fillRect(0, grassTop, SW, 1);
+  // Petites fleurs
+  for (const fx of [18,44,78,128,188,246]) {
+    const fy = grassTop + 4 + ((fx*7)%5);
+    ctx.fillStyle = css(0xf8f840); ctx.fillRect(fx, fy, 2, 2);
+    ctx.fillStyle = css(0xf8f8f8);
+    ctx.fillRect(fx-1,fy+1,1,1); ctx.fillRect(fx+2,fy+1,1,1);
+    ctx.fillRect(fx, fy-1,1,1);  ctx.fillRect(fx+1,fy+2,1,1);
+  }
+
+  // Arbres (base à y = GROUND_Y)
+  for (const ttx of [44,128,220]) drawTree(ctx, ttx, GROUND_Y);
+
+  // ── 5. Sol : dalles 8×8 ───────────────────────────────────────────────
+  const GH = SH - GROUND_Y;
+  for (let x=0; x<SW; x+=tW) {
+    for (let y=GROUND_Y; y<SH; y+=tH) {
+      const alt = ((x/tW + y/tH)%2 === 0);
+      ctx.fillStyle = alt ? css(P.grassTile1) : css(P.grassTile2);
+      ctx.fillRect(x, y, tW, tH);
+    }
+  }
+  ctx.fillStyle = css(P.grassGrid);
+  for (let x=0; x<SW; x+=tW)  ctx.fillRect(x, GROUND_Y, 1, GH);
+  for (let y=GROUND_Y; y<SH; y+=tH) ctx.fillRect(0, y, SW, 1);
+  ctx.fillStyle = css(lerpHex(P.grassTile1, 0xffffff, 0.45));
+  ctx.fillRect(0, GROUND_Y, SW, 1);
+  ctx.fillStyle = css(lerpHex(P.grassTile1, 0x000000, 0.3));
+  ctx.fillRect(0, SH-2, SW, 2);
+}
+
+// ── Arbre pixel art ALTTP ─────────────────────────────────────────────────
+function drawTree(ctx, tx, baseY) {
+  const cl = [
+    [  0, -46, 13, 11],
+    [-11, -37, 10,  9],
+    [ 11, -37, 10,  9],
+    [ -5, -54,  9,  8],
+    [  5, -54,  9,  8],
+    [  0, -30,  8,  7],
+    [ -9, -27,  7,  6],
+    [  9, -27,  7,  6],
+  ];
+  // Pass 1 : contour sombre
+  ctx.fillStyle = css(P.leafDark);
+  for (const [cx,cy,rx,ry] of cl) pxEllipse(ctx, tx+cx, baseY+cy, rx+2, ry+2);
+  // Pass 2 : remplissage vert moyen
+  ctx.fillStyle = css(P.leafMid);
+  for (const [cx,cy,rx,ry] of cl) pxEllipse(ctx, tx+cx, baseY+cy, rx, ry);
+  // Pass 3 : reflets haut-gauche
+  ctx.fillStyle = css(P.leafLight);
+  for (const [cx,cy,rx,ry] of cl) pxHighlight(ctx, tx+cx, baseY+cy, rx, ry);
+  // Tronc
+  ctx.fillStyle = css(lerpHex(P.trunkA, 0x000000, 0.48));
+  ctx.fillRect(tx-3, baseY-24, 6, 24);
+  ctx.fillStyle = css(P.trunkA);
+  ctx.fillRect(tx-2, baseY-24, 4, 24);
+  ctx.fillStyle = css(lerpHex(P.trunkA, 0x000000, 0.28));
+  ctx.fillRect(tx+1, baseY-24, 1, 24);
+}
+
+// ── Dessin initial ────────────────────────────────────────────────────────
+function reDraw() { draw(); }
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+-- ball.script
+-- Comportement individuel d'une balle : réception de la vélocité initiale
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_velocity") then
+		physics.set_linear_velocity("#collision", message.velocity)
+	end
+end

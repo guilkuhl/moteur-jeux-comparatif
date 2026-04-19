@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>SpriteGPULayer — 4 Saisons SNES 🎮</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000; overflow: hidden;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      width: 100vw; height: 100vh; gap: 10px;
+    }
+    #wrapper { position: relative; flex-shrink: 0; }
+    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #scanlines {
+      position: absolute; inset: 0; pointer-events: none; z-index: 50;
+      background: repeating-linear-gradient(0deg,
+        transparent 0px, transparent 50%,
+        rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.16) 100%);
+    }
+    #vignette {
+      position: absolute; inset: 0; pointer-events: none; z-index: 51;
+      background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(0,0,0,0.68) 100%);
+    }
+    #row1, #row2 {
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: wrap; justify-content: center; z-index: 200;
+    }
+    .btn {
+      background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.28);
+      color: rgba(255,255,255,0.65); padding: 4px 11px; border-radius: 3px;
+      cursor: pointer; font-family: 'Courier New', monospace; font-size: 10px;
+      letter-spacing: 1px;
+    }
+    .btn:hover  { background: rgba(255,255,255,0.14); color: #fff; }
+    .btn.active { border-color: #f8e818; color: #f8e818; }
+    .btn.fx     { border-color: rgba(80,200,255,0.4); color: rgba(80,200,255,0.7); }
+    .btn.fx.active { border-color: #50d8ff; color: #50d8ff; }
+    .sep { width: 1px; height: 18px; background: rgba(255,255,255,0.12); }
+    #slider-wrap {
+      display: flex; align-items: center; gap: 7px;
+      font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 1px;
+    }
+    #slider-wrap label { color: rgba(255,255,255,0.4); }
+    #slider-wrap b { color: #f8e818; min-width: 34px; text-align: right; }
+    #pct-slider {
+      -webkit-appearance: none; width: 100px; height: 5px;
+      background: rgba(255,255,255,0.12); border-radius: 3px;
+      outline: none; cursor: pointer; border: 1px solid rgba(255,255,255,0.18);
+    }
+    #pct-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 12px; height: 12px;
+      background: #f8e818; border-radius: 2px; border: 2px solid #000; cursor: pointer;
+    }
+    a.back {
+      position: fixed; top: 8px; right: 12px; z-index: 200;
+      color: rgba(255,255,255,0.28); font-family: monospace; font-size: 11px; text-decoration: none;
+    }
+    a.back:hover { color: #fff; }
+  </style>
+</head>
+<body>
+<div id="wrapper">
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+</div>
+
+<!-- Ligne 1 : saisons + auto -->
+<div id="row1">
+  <button class="btn active" id="btn-auto"   onclick="toggleAuto()">▶ AUTO</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="goSeason(0)">🌸 SPRING</button>
+  <button class="btn" onclick="goSeason(1)">☀ SUMMER</button>
+  <button class="btn" onclick="goSeason(2)">🍂 AUTUMN</button>
+  <button class="btn" onclick="goSeason(3)">❄ WINTER</button>
+  <div class="sep"></div>
+  <div id="slider-wrap">
+    <label>SPR</label>
+    <input type="range" id="pct-slider" min="1" max="100" value="100">
+    <b id="pct-val">100%</b>
+  </div>
+</div>
+
+<!-- Ligne 2 : effets parallaxe SNES -->
+<div id="row2">
+  <span style="color:rgba(80,200,255,0.5);font-family:monospace;font-size:10px;letter-spacing:1px">EFFETS SNES :</span>
+  <button class="btn fx active" id="btn-parallax" onclick="toggleFx('parallax')">BG×4 PARALLAX</button>
+  <button class="btn fx"        id="btn-hdma"     onclick="toggleFx('hdma')">HDMA WAVE</button>
+  <button class="btn fx"        id="btn-mode7"    onclick="toggleFx('mode7')">MODE 7</button>
+</div>
+
+<a class="back" href="index.html">← index</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+//  RÉSOLUTION SNES 256×224 — mis à l'échelle CSS pixelated
+// ════════════════════════════════════════════════════════════════════════════
+const SW = 256, SH = 224;
+const availH  = window.innerHeight - 80;
+const SCALE   = Math.min(window.innerWidth / SW, availH / SH);
+
+const app = new PIXI.Application({ width:SW, height:SH, antialias:false, roundPixels:true, backgroundColor:0 });
+app.view.style.cssText = `width:${Math.round(SW*SCALE)}px;height:${Math.round(SH*SCALE)}px;image-rendering:pixelated`;
+const wrap = document.getElementById('wrapper');
+wrap.style.cssText = `width:${Math.round(SW*SCALE)}px;height:${Math.round(SH*SCALE)}px`;
+wrap.appendChild(app.view);
+document.getElementById('scanlines').style.backgroundSize = `100% ${Math.max(2,Math.round(SCALE)*2)}px`;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  LAYOUT
+// ════════════════════════════════════════════════════════════════════════════
+const HUD_H    = 18;
+const GROUND_Y = 150;     // Y où commence le sol
+const PLAY_H   = SH - HUD_H;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+function hexRgb(h) { return [(h>>16)&0xff,(h>>8)&0xff,h&0xff]; }
+function lerpHex(a,b,t) {
+  const [ar,ag,ab]=hexRgb(a),[br,bg,bb]=hexRgb(b);
+  return (((ar+(br-ar)*t)|0)<<16)|(((ag+(bg-ag)*t)|0)<<8)|((ab+(bb-ab)*t)|0);
+}
+function css(h) { const[r,g,b]=hexRgb(h); return `rgb(${r},${g},${b})`; }
+function mkCv(w,h) {
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=false; return [cv,ctx];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TEXTURES PIXEL ART 8×8 (map binaire → canvas blanc → tint PixiJS)
+// ════════════════════════════════════════════════════════════════════════════
+function makeTex(map,w,h) {
+  const [cv,ctx]=mkCv(w,h);
+  for(let i=0;i<map.length;i++){ if(!map[i])continue; ctx.fillStyle='#fff'; ctx.fillRect(i%w,i/w|0,1,1); }
+  return PIXI.Texture.from(cv);
+}
+const TEX_PETAL = makeTex([0,0,1,1,1,1,0,0,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,0,0,0,0],8,8);
+const TEX_LEAF  = makeTex([0,0,0,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],8,8);
+const TEX_FLAKE = makeTex([0,0,1,0,0,1,0,0,0,0,0,1,1,0,0,0,1,0,0,1,1,0,0,1,0,1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,1,0,0,1,1,0,0,1,0,0,0,1,1,0,0,0,0,0,1,0,0,1,0,0],8,8);
+const TEX_STAR  = makeTex([0,0,1,1,0,0,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,0,0,1,1,0,0],6,6);
+const TEX_DOT   = makeTex([0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0],4,4);
+const TEX_EMBER = makeTex([0,1,0,1,1,1,0,1,0],3,3);
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PRIMITIVES PIXEL ART (rendu pur fillRect, zéro antialiasing)
+//  Comme un vrai chip SNES/PPU : chaque pixel est posé individuellement.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Ellipse scanline : pour chaque ligne dy, calcule la largeur et dessine 1px de haut
+function pxEllipse(ctx, cx, cy, rx, ry) {
+  for (let dy = -ry; dy <= ry; dy++) {
+    const dx = Math.round(rx * Math.sqrt(Math.max(0, 1 - dy*dy / (ry*ry + 0.001))));
+    if (dx > 0) ctx.fillRect((cx-dx)|0, (cy+dy)|0, dx*2, 1);
+  }
+}
+// Reflet : quadrant haut-gauche d'une ellipse (45% de la largeur)
+function pxHighlight(ctx, cx, cy, rx, ry) {
+  const stopDy = -(ry/3)|0;
+  for (let dy = -ry; dy <= stopDy; dy++) {
+    const dx = Math.round(rx * Math.sqrt(Math.max(0, 1 - dy*dy / (ry*ry + 0.001))));
+    const hw = (dx * 0.44)|0;
+    if (hw > 0) ctx.fillRect((cx-dx+1)|0, (cy+dy)|0, hw, 1);
+  }
+}
+// Montagne pixel art : remplie colonne par colonne (hauteur parabolique)
+function pxMountain(ctx, peakX, baseY, halfW, peakH) {
+  for (let x = (peakX-halfW)|0; x <= (peakX+halfW)|0; x++) {
+    const t = Math.abs(x - peakX) / halfW;
+    const h = Math.round(peakH * (1 - t*t));
+    if (h > 0) ctx.fillRect(x, baseY-h, 1, h);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DESSIN DES COUCHES (Canvas 2D → PIXI.Texture / TilingSprite)
+//  Authentique SNES : 4 BG layers à vitesses 1:2:4:8
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Ciel statique (256×GROUND_Y) ─────────────────────────────────────────
+function makeSky(s) {
+  const [cv,ctx] = mkCv(SW, GROUND_Y);
+  // Gradient en bandes de 2px (dithering SNES)
+  for (let y=0; y<GROUND_Y; y+=2) {
+    ctx.fillStyle = css(lerpHex(s.skyTop, s.skyBot, y/GROUND_Y));
+    ctx.fillRect(0, y, SW, 3);
+  }
+
+  if (s.grassTile1) {
+    // ─ Style ALTTP : montagnes pixel art, zéro ctx.arc ─
+    // Collines lointaines (plus claires, reculées)
+    ctx.fillStyle = css(lerpHex(s.mountain, s.skyBot, 0.52));
+    const hfDefs = [[-8,18],[40,25],[96,17],[152,23],[210,19],[262,15]];
+    for (const [hx,hh] of hfDefs) pxMountain(ctx, hx, GROUND_Y, hh*2.0, hh);
+    // Montagnes principales (plus sombres, au premier plan)
+    ctx.fillStyle = css(s.mountain);
+    const mts = [[18,28],[60,38],[118,26],[176,34],[234,28],[268,22]];
+    for (const [mx,mh] of mts) pxMountain(ctx, mx, GROUND_Y, mh*1.7, mh);
+    // 1px sombre + 1px reflet sur la crête
+    ctx.fillStyle = css(lerpHex(s.mountain, 0x000000, 0.48));
+    ctx.fillRect(0, GROUND_Y-4, SW, 2);
+    ctx.fillStyle = css(lerpHex(s.mountain, 0xffffff, 0.30));
+    ctx.fillRect(0, GROUND_Y-5, SW, 1);
+    // Dithering checkerboard à l'horizon (alternance ciel/montagne)
+    const dCol = lerpHex(lerpHex(s.skyTop, s.skyBot, 0.88), s.mountain, 0.5);
+    ctx.fillStyle = css(dCol);
+    for (let x=0; x<SW; x+=2) ctx.fillRect(x, GROUND_Y-7, 1, 1);
+    for (let x=1; x<SW; x+=2) ctx.fillRect(x, GROUND_Y-8, 1, 1);
+  } else {
+    // ─ Style générique (printemps, automne, hiver) ─
+    ctx.fillStyle = css(s.mountain);
+    const mts = [[18,30],[55,40],[110,28],[168,36],[228,30],[258,24]];
+    for (const [mx,mh] of mts) {
+      ctx.beginPath(); ctx.ellipse(mx, GROUND_Y-4, mh*1.6, mh, 0, Math.PI, 0, true); ctx.fill();
+    }
+    ctx.fillStyle = css(lerpHex(s.mountain, 0x000000, 0.3));
+    ctx.fillRect(0, GROUND_Y-6, SW, 2);
+  }
+  return PIXI.Texture.from(cv);
+}
+
+// ── Nuages BG3 (512×52, vitesse 0.5x) ────────────────────────────────────
+function makeCloudLayer(s) {
+  if (!s.hasClouds) return null;
+  const W=512, H=52;
+  const [cv,ctx] = mkCv(W,H);
+  const defs = [[40,32,1.1],[145,22,0.9],[265,28,1.25],[380,20,0.85],[470,26,1.05]];
+  const blobs = [[0,0,13],[-14,5,9],[14,5,9],[-7,-6,8],[7,-6,8],[-3,6,7],[3,6,7]];
+  for (const [cx,cy,sc] of defs) {
+    if (s.cloudOutline) {
+      // Style ALTTP : pixel art pur — pxEllipse, zéro ctx.arc
+      // Pass 1 : contour bleu-gris sombre (légèrement plus grand)
+      ctx.fillStyle = css(s.cloudOutline);
+      for (const [dx,dy,r] of blobs) {
+        const rx = Math.round((r+1.5)*sc), ry = Math.round((r+1.5)*sc*0.82);
+        pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+      }
+      // Pass 2 : remplissage blanc pur
+      ctx.fillStyle = css(s.cloudColor);
+      for (const [dx,dy,r] of blobs) {
+        const rx = Math.round(r*sc), ry = Math.round(r*sc*0.82);
+        pxEllipse(ctx, (cx+dx*sc)|0, (cy+dy*sc)|0, rx, ry);
+      }
+      // Ombre portée rectangulaire sous le nuage (style SNES = rectangle, pas ellipse)
+      ctx.fillStyle = css(s.cloudShadow);
+      const rw = Math.round(14*sc);
+      ctx.fillRect(cx-rw+2, (cy+Math.round(10*sc))|0, rw*2-4, Math.round(3*sc));
+    } else {
+      ctx.fillStyle = css(s.cloudColor);
+      for (const [dx,dy,r] of blobs) {
+        ctx.beginPath(); ctx.arc(cx+dx*sc, cy+dy*sc, r*sc, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = css(lerpHex(s.cloudColor, s.skyBot, 0.35));
+      ctx.beginPath(); ctx.ellipse(cx, cy+10*sc, 13*sc, 4*sc, 0, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  return PIXI.Texture.from(cv);
+}
+
+// ── Végétation BG2 (512×72, vitesse 1x) ──────────────────────────────────
+function makeTreeLayer(s) {
+  const W=512, H=72;
+  const [cv,ctx] = mkCv(W,H);
+
+  if (s.grassTile1) {
+    // ─ Style ALTTP : bande de dalles de gazon + bordure de falaise ─
+    const tW=8, tH=8, grassTop=H-24;
+    // Dalles en damier
+    for (let x=0; x<W; x+=tW) {
+      for (let y=grassTop; y<H; y+=tH) {
+        const alt=((x/tW + y/tH)%2===0);
+        ctx.fillStyle = alt ? css(s.grassTile1) : css(s.grassTile2);
+        ctx.fillRect(x, y, tW, tH);
+      }
+    }
+    // Grille de dalles
+    ctx.fillStyle = css(s.grassGrid);
+    for (let x=0; x<W; x+=tW) ctx.fillRect(x, grassTop, 1, H-grassTop);
+    for (let y=grassTop; y<H; y+=tH) ctx.fillRect(0, y, W, 1);
+    // Haut de falaise : 1px sombre + 1px reflet
+    ctx.fillStyle = css(lerpHex(s.grassTile1, 0x000000, 0.55));
+    ctx.fillRect(0, grassTop-2, W, 2);
+    ctx.fillStyle = css(lerpHex(s.grassTile1, 0xffffff, 0.55));
+    ctx.fillRect(0, grassTop, W, 1);
+    // Petites fleurs blanches/jaunes sur le gazon
+    const flowerPos = [20,45,80,130,190,250,310,370,430,480];
+    for (const fx of flowerPos) {
+      const fy = grassTop + 4 + ((fx*7)%6);
+      ctx.fillStyle = css(0xf8f840); ctx.fillRect(fx,   fy,   2, 2);
+      ctx.fillStyle = css(0xf8f8f8); ctx.fillRect(fx-1, fy+1, 1, 1);
+      ctx.fillStyle = css(0xf8f8f8); ctx.fillRect(fx+2, fy+1, 1, 1);
+      ctx.fillStyle = css(0xf8f8f8); ctx.fillRect(fx,   fy-1, 1, 1);
+      ctx.fillStyle = css(0xf8f8f8); ctx.fillRect(fx+1, fy+2, 1, 1);
+    }
+  } else {
+    // ─ Style générique (printemps, automne, hiver) ─
+    ctx.fillStyle = css(s.hillNear);
+    ctx.fillRect(0, H-14, W, 14);
+    const bumps = [[24,16],[85,20],[160,14],[248,18],[335,15],[420,19],[498,13]];
+    for (const [bx,bh] of bumps) {
+      ctx.beginPath(); ctx.ellipse(bx, H-12, bh*1.5, bh, 0, Math.PI, 0, true); ctx.fill();
+    }
+    ctx.fillStyle = css(s.bushColor);
+    for (const [bx,by] of [[15,H-16],[72,H-14],[160,H-18],[260,H-15],[355,H-16],[448,H-14],[508,H-17]]) {
+      ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx-9, by+4, 7, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx+9, by+4, 7, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  // Arbres (communs aux deux styles)
+  for (const ttx of [52,162,288,408,500]) drawTree(ctx, ttx, H, s);
+  return PIXI.Texture.from(cv);
+}
+
+function drawTree(ctx, tx, baseY, s) {
+  switch (s.treeType) {
+
+    case 'alttp': {
+      // ─ Arbre pixel art pur : pxEllipse scanline, zéro ctx.arc ─
+      // Clusters : [décalageX, décalageY depuis baseY, rayonX, rayonY]
+      // Rayons légèrement aplatis (rx > ry) pour look SNES
+      const cl = [
+        [  0, -46, 13,  11 ],   // centre principal
+        [-11, -37, 10,   9 ],   // gauche
+        [ 11, -37, 10,   9 ],   // droite
+        [ -5, -54,  9,   8 ],   // haut-gauche
+        [  5, -54,  9,   8 ],   // haut-droite
+        [  0, -30,  8,   7 ],   // bas (raccord tronc)
+        [ -9, -27,  7,   6 ],   // bas-gauche
+        [  9, -27,  7,   6 ],   // bas-droite
+      ];
+      const M = s.leafMid !== undefined ? s.leafMid : lerpHex(s.leafDark, s.leafLight, 0.5);
+      // Pass 1 : contour très sombre (px+1 plus large de chaque côté)
+      ctx.fillStyle = css(s.leafDark);
+      for (const [cx,cy,rx,ry] of cl)
+        pxEllipse(ctx, tx+cx, baseY+cy, rx+2, ry+2);
+      // Pass 2 : remplissage vert moyen
+      ctx.fillStyle = css(M);
+      for (const [cx,cy,rx,ry] of cl)
+        pxEllipse(ctx, tx+cx, baseY+cy, rx, ry);
+      // Pass 3 : reflets vert clair (quadrant haut-gauche de chaque cluster)
+      ctx.fillStyle = css(s.leafLight);
+      for (const [cx,cy,rx,ry] of cl)
+        pxHighlight(ctx, tx+cx, baseY+cy, rx, ry);
+      // Tronc : contour sombre 1px + remplissage + ombre côté droit
+      ctx.fillStyle = css(lerpHex(s.trunkA, 0x000000, 0.48));
+      ctx.fillRect(tx-3, baseY-24, 6, 24);
+      ctx.fillStyle = css(s.trunkA);
+      ctx.fillRect(tx-2, baseY-24, 4, 24);
+      ctx.fillStyle = css(lerpHex(s.trunkA, 0x000000, 0.28));
+      ctx.fillRect(tx+1, baseY-24, 1, 24);
+      break;
+    }
+
+    case 'palm': {
+      // Tronc rose-saumon avec rayures (SNES tropical — comme le screenshot)
+      const TH = 48;
+      for (let i=0; i<TH; i+=4) {
+        ctx.fillStyle = (i/4)%2===0 ? css(s.trunkA) : css(s.trunkB);
+        ctx.fillRect(tx-2, baseY-TH+i, 4, 4);
+      }
+      // Noix de coco (petits ronds bruns au sommet du tronc)
+      ctx.fillStyle = css(0x703018);
+      ctx.beginPath(); ctx.arc(tx, baseY-TH+2, 3, 0, Math.PI*2); ctx.fill();
+      // Palmes : ellipses orientées (vert foncé avec reflets)
+      const fronds = [[0,-48,15,4,-0.3],[-17,-42,14,4,-0.9],[17,-42,14,4,0.9],[-11,-36,13,4,-1.4],[11,-36,13,4,1.4],[0,-34,12,4,0.1]];
+      for (const [fx,fy,rw,rh,ang] of fronds) {
+        ctx.save(); ctx.translate(tx+fx, baseY+fy); ctx.rotate(ang);
+        ctx.fillStyle = css(s.leafDark);
+        ctx.beginPath(); ctx.ellipse(0,0,rw,rh,0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = css(s.leafLight);
+        ctx.beginPath(); ctx.ellipse(2,1,rw*0.35,rh*0.45,0,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+      break;
+    }
+
+    case 'sakura': {
+      // Tronc gris
+      ctx.fillStyle = css(s.trunkA);
+      ctx.fillRect(tx-2, baseY-42, 4, 42);
+      // Branche principale
+      ctx.fillRect(tx-1, baseY-30, 2, 4);
+      // Couronne de cerisier (nuage de pétales)
+      const crown = [[0,-42,15],[-11,-34,10],[11,-34,10],[-5,-50,9],[5,-50,9],[-8,-28,8],[8,-28,8]];
+      for (const [bx,by,br] of crown) {
+        ctx.fillStyle = css(s.leafDark);
+        ctx.beginPath(); ctx.arc(tx+bx, baseY+by, br, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = css(s.leafLight);
+        ctx.beginPath(); ctx.arc(tx+bx-2, baseY+by-2, br*0.4, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+    }
+
+    case 'bare': {
+      ctx.strokeStyle = css(s.trunkA); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(tx, baseY); ctx.lineTo(tx, baseY-42); ctx.stroke();
+      ctx.lineWidth = 2;
+      // [startX, startY, endX, endY]
+      const branches = [
+        [tx, baseY-30, tx-16, baseY-42],
+        [tx, baseY-30, tx+16, baseY-42],
+        [tx, baseY-26, tx-10, baseY-38],
+        [tx, baseY-26, tx+10, baseY-38],
+        [tx, baseY-36, tx-6,  baseY-46],
+        [tx, baseY-36, tx+6,  baseY-46],
+      ];
+      for (const [sx,sy,ex,ey] of branches) {
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+      }
+      break;
+    }
+
+    case 'snow': {
+      ctx.strokeStyle = css(s.trunkA); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(tx, baseY); ctx.lineTo(tx, baseY-42); ctx.stroke();
+      ctx.lineWidth = 2;
+      // [startX, startY, endX, endY]
+      const brs = [
+        [tx, baseY-30, tx-16, baseY-42],
+        [tx, baseY-30, tx+16, baseY-42],
+        [tx, baseY-26, tx-10, baseY-38],
+        [tx, baseY-26, tx+10, baseY-38],
+      ];
+      for (const [sx,sy,ex,ey] of brs) {
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+        // Neige sur chaque branche
+        ctx.fillStyle = css(s.leafLight);
+        ctx.beginPath(); ctx.ellipse(ex, ey, 7, 3, 0, 0, Math.PI*2); ctx.fill();
+      }
+      // Congère sur le sommet
+      ctx.fillStyle = css(s.leafLight);
+      ctx.beginPath(); ctx.ellipse(tx, baseY-44, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+  }
+}
+
+// ── Sol (256 × sol-height) ────────────────────────────────────────────────
+function makeGround(s) {
+  const H = SH - GROUND_Y - HUD_H;
+  const [cv,ctx] = mkCv(SW, H);
+
+  if (s.grassTile1) {
+    // ─ Sol style ALTTP : dalles 8×8 en damier ─
+    const tW=8, tH=8;
+    for (let x=0; x<SW; x+=tW) {
+      for (let y=0; y<H; y+=tH) {
+        const alt=((x/tW + y/tH)%2===0);
+        ctx.fillStyle = alt ? css(s.grassTile1) : css(s.grassTile2);
+        ctx.fillRect(x, y, tW, tH);
+      }
+    }
+    // Grille de dalles
+    ctx.fillStyle = css(s.grassGrid);
+    for (let x=0; x<SW; x+=tW) ctx.fillRect(x, 0, 1, H);
+    for (let y=0; y<H; y+=tH) ctx.fillRect(0, y, SW, 1);
+    // Reflet sur la première ligne (sous le bord de falaise du layer d'arbres)
+    ctx.fillStyle = css(lerpHex(s.grassTile1, 0xffffff, 0.45));
+    ctx.fillRect(0, 0, SW, 1);
+    // Ligne d'ombre en bas (profondeur)
+    ctx.fillStyle = css(lerpHex(s.grassTile1, 0x000000, 0.3));
+    ctx.fillRect(0, H-2, SW, 2);
+  } else {
+    // ─ Sol multi-bandes (printemps, automne, hiver) ─
+    const bands = s.groundBands;
+    const bh = H / bands.length;
+    for (let i=0; i<bands.length; i++) {
+      ctx.fillStyle = css(bands[i]);
+      ctx.fillRect(0, i*bh|0, SW, (bh+1)|0);
+    }
+    ctx.fillStyle = css(lerpHex(bands[0], 0xffffff, 0.32));
+    for (let x=0; x<SW; x+=4)
+      for (let y=0; y<bh-2; y+=4)
+        if ((x/4+y/4)%2===0) ctx.fillRect(x,y,2,2);
+    ctx.fillStyle = css(lerpHex(bands[0], 0xffffff, 0.5));
+    ctx.fillRect(0, 0, SW, 1);
+  }
+  return PIXI.Texture.from(cv);
+}
+
+// ── HUD barre ─────────────────────────────────────────────────────────────
+function makeHudTex(s) {
+  const [cv,ctx] = mkCv(SW, HUD_H);
+  ctx.fillStyle = css(s.hudBg);
+  ctx.fillRect(0,0,SW,HUD_H);
+  ctx.fillStyle = css(lerpHex(s.hudBg, 0x000000, 0.6));
+  ctx.fillRect(0,0,SW,1);
+  return PIXI.Texture.from(cv);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SAISONS — palette authentique SNES d'après les screenshots de référence
+// ════════════════════════════════════════════════════════════════════════════
+const SEASONS = [
+  {
+    id:0, name:'SPRING', kana:'はる',
+    skyTop:0x60a8f8, skyBot:0xf0c8e8,
+    mountain:0x308028,
+    hillNear:0x58cc30, bushColor:0x70e038,
+    hasClouds:true, cloudColor:0xf8f0f8,
+    treeType:'sakura', trunkA:0x807070, trunkB:0,
+    leafDark:0xf870b0, leafLight:0xf8d0e8,
+    groundBands:[0xe8f860, 0x98d028, 0x60a018, 0x408010],
+    hudBg:0x283068, hudTxt:0xf870b0,
+    groups:[
+      { tex:TEX_PETAL, n:1800, tints:[0xf870b0,0xf8b0d0,0xf8d8e8,0xf8f0f8], vyMin:0.25,vyMax:0.9, vxR:1.0, spin:0.03, wob:0.4, up:false },
+      { tex:TEX_DOT,   n:700,  tints:[0xf8d030,0xf8f030,0xf8f8f8],          vyMin:-0.2,vyMax:0.3, vxR:1.5, spin:0,    wob:0.7, up:false },
+    ],
+  },
+  {
+    id:1, name:'SUMMER', kana:'なつ',
+    // ── Palette SNES authentique — inspirée de A Link to the Past ──
+    // Ciel bleu ALTTP : bande foncée en haut, clair à l'horizon
+    skyTop:0x3860d0, skyBot:0x88b0f0,
+    // Montagnes bleu-vert sombres à l'horizon
+    mountain:0x205828,
+    hillNear:0x50b020, bushColor:0x68c830,
+    // Nuages style ALTTP : blanc pur, contour bleu-gris, ombre portée
+    hasClouds:true, cloudColor:0xf8f8f8, cloudOutline:0x6878a8, cloudShadow:0xa8b8d0,
+    // Arbres style ALTTP : clusters ronds avec contour sombre
+    treeType:'alttp',
+    trunkA:0x604828, trunkB:0x806040,
+    leafDark:0x183808,    // contour très sombre (quasi noir-vert)
+    leafMid: 0x389018,    // vert moyen (remplissage principal)
+    leafLight:0x60c028,   // vert clair (reflets)
+    // Sol : dalles de gazon 8×8 style ALTTP
+    grassTile1:0x50b020, grassTile2:0x60c030, grassGrid:0x389010,
+    // Conservé pour Mode 7
+    groundBands:[0x58b828, 0x48a018, 0x389010, 0x286008],
+    hudBg:0x102050, hudTxt:0xf8e018,
+    groups:[
+      // Feuilles portées par le vent (vert été)
+      { tex:TEX_LEAF, n:700, tints:[0x60c828,0x78d838,0x48a818,0x90e840,0x50b820], vyMin:0.15,vyMax:0.65, vxR:1.0, spin:0.02, wob:0.9, up:false },
+      // Lucioles montantes (jaune-vert lumineux)
+      { tex:TEX_DOT,  n:400, tints:[0xf8f040,0xc8e818,0xf8f8a0,0xe8f030],          vyMin:-0.9,vyMax:-0.2, vxR:0.4, spin:0,    wob:0.75, up:true  },
+    ],
+  },
+  {
+    id:2, name:'AUTUMN', kana:'あき',
+    skyTop:0x500808, skyBot:0xe05818,
+    mountain:0x381008,
+    hillNear:0x502010, bushColor:0x682018,
+    hasClouds:false, cloudColor:0,
+    treeType:'bare', trunkA:0x604020, trunkB:0,
+    leafDark:0, leafLight:0,
+    groundBands:[0xd05820, 0xa03010, 0x782008, 0x501008],
+    hudBg:0x280808, hudTxt:0xf85010,
+    groups:[
+      { tex:TEX_LEAF,  n:1800, tints:[0xf85010,0xf8a808,0xa82808,0x682010,0xf8c840], vyMin:0.4,vyMax:1.5, vxR:1.8, spin:0.06,  wob:0.55, up:false },
+      { tex:TEX_EMBER, n:500,  tints:[0xf86000,0xf85010,0xf8a808],                   vyMin:-0.8,vyMax:-0.1,vxR:1.0, spin:0.04,  wob:0.5,  up:true  },
+    ],
+  },
+  {
+    id:3, name:'WINTER', kana:'ふゆ',
+    skyTop:0x080830, skyBot:0x2050a8,
+    mountain:0x283858,
+    hillNear:0x304870, bushColor:0x385888,
+    hasClouds:true, cloudColor:0x7888a8,
+    treeType:'snow', trunkA:0x283848, trunkB:0,
+    leafDark:0, leafLight:0xd8e8f8,
+    groundBands:[0xe8f4f8, 0xa8c8e8, 0x6888b8, 0x384878],
+    hudBg:0x040818, hudTxt:0x88c0f8,
+    groups:[
+      { tex:TEX_FLAKE, n:1100, tints:[0xf8f8f8,0xc8e0f8,0xa8c8f8],          vyMin:0.2, vyMax:0.7, vxR:0.6, spin:0.015, wob:0.3,  up:false },
+      { tex:TEX_DOT,   n:1300, tints:[0xf8f8f8,0xd8ecf8,0xa8c8f8,0x88b8f8], vyMin:0.6, vyMax:1.8, vxR:0.3, spin:0,     wob:0.12, up:false },
+    ],
+  },
+];
+
+// ════════════════════════════════════════════════════════════════════════════
+//  EFFETS SNES : HDMA wave (fragment shader) + MODE 7 (canvas/ligne)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── HDMA : per-scanline sinusoidal x-offset ───────────────────────────────
+// Sur SNES, le HDMA modifiait le registre de scroll horizontal à chaque
+// H-blank → effet vague sur l'eau, distorsion atmosphérique
+const HDMA_FRAG = `
+  varying vec2 vTextureCoord;
+  uniform sampler2D uSampler;
+  uniform float uTime;
+  uniform float uAmp;
+  uniform float uScreenH;
+  void main(void) {
+    vec2 uv = vTextureCoord;
+    float scanline = uv.y * uScreenH;
+    // Deux fréquences superposées (exactement comme HDMA à 2 niveaux sur SNES)
+    float wave = sin(scanline * 0.14 + uTime * 2.8) * uAmp
+               + sin(scanline * 0.07 - uTime * 1.6) * uAmp * 0.5;
+    uv.x = clamp(uv.x + wave, 0.0, 1.0);
+    gl_FragColor = texture2D(uSampler, uv);
+  }
+`;
+const hdmaFilter = new PIXI.Filter(null, HDMA_FRAG, { uTime:0.0, uAmp:0.009, uScreenH: SH });
+
+// ── MODE 7 : sol en perspective par ligne ─────────────────────────────────
+// Sur SNES, Mode 7 appliquait une matrice affine (M7A/B/C/D) changeante par
+// scanline via HDMA → projection pseudo-3D (F-Zero, Mario Kart)
+const m7Cv  = document.createElement('canvas');
+m7Cv.width  = SW;
+m7Cv.height = SH - GROUND_Y - HUD_H;
+const m7Tex = PIXI.Texture.from(m7Cv);
+
+function renderMode7(s, scrollX) {
+  const ctx = m7Cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const H = m7Cv.height;
+  const bands = s.groundBands;
+  const FOCAL = 60; // hauteur caméra simulée
+
+  for (let row=1; row<=H; row++) {
+    // Profondeur normalisée : 0=horizon, 1=premier plan
+    const d = row / H;
+    // Perspective : lignes proches → période de texture petite (détail fin)
+    //              lignes lointaines → période large (compression perspective)
+    const perspective = FOCAL / (row + 0.1);
+    const period = Math.max(1, (perspective * 12)|0);
+
+    // Couleur de bande selon la profondeur
+    const bi = Math.min(bands.length-1, (d * bands.length)|0);
+    const [r,g,b] = hexRgb(bands[bi]);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(0, row-1, SW, 1);
+
+    // Quadrillage de sol (grille perspective qui se rétrécit vers l'horizon)
+    if (period >= 2) {
+      const [lr,lg,lb] = hexRgb(lerpHex(bands[bi], 0xffffff, 0.22));
+      ctx.fillStyle = `rgb(${lr},${lg},${lb})`;
+      const offset = Math.abs(scrollX / (perspective+0.1))|0 % (period*2);
+      for (let x = offset%period; x < SW; x += period*2) {
+        ctx.fillRect(x, row-1, Math.max(1, period>>1), 1);
+      }
+    }
+  }
+  m7Tex.update();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SCÈNE
+// ════════════════════════════════════════════════════════════════════════════
+// bgContainer regroupe sky+clouds+trees+ground — le filtre HDMA s'applique
+// à ce groupe SANS toucher les sprites ni le HUD
+const bgContainer = new PIXI.Container();
+const skySprite   = new PIXI.Sprite(); skySprite.y=0;
+const groundSprite= new PIXI.Sprite(); groundSprite.y=GROUND_Y;
+const m7Sprite    = new PIXI.Sprite(m7Tex); m7Sprite.y=GROUND_Y;
+let   cloudSprite = null;
+let   treeSprite  = null;
+
+const gpuLayer = new PIXI.ParticleContainer(4500,{position:true,rotation:true,scale:true,tint:true,alpha:true});
+const hudSprite = new PIXI.Sprite(); hudSprite.y = SH-HUD_H;
+const hudGfx    = new PIXI.Graphics();
+const fadeGfx   = new PIXI.Graphics();
+fadeGfx.beginFill(0).drawRect(0,0,SW,SH).endFill(); fadeGfx.alpha=0;
+
+bgContainer.addChild(skySprite);
+bgContainer.addChild(groundSprite);
+bgContainer.addChild(m7Sprite);
+app.stage.addChild(bgContainer);
+app.stage.addChild(gpuLayer);
+app.stage.addChild(hudSprite);
+app.stage.addChild(hudGfx);
+app.stage.addChild(fadeGfx);
+
+const hudStyle = new PIXI.TextStyle({ fontFamily:'"Courier New",monospace', fontSize:7, fill:0xf8f8f8, letterSpacing:1 });
+const txtLeft  = new PIXI.Text('', hudStyle); txtLeft.y  = SH-HUD_H+5;
+const txtRight = new PIXI.Text('', hudStyle); txtRight.y = SH-HUD_H+5;
+app.stage.addChild(txtLeft); app.stage.addChild(txtRight);
+
+// ════════════════════════════════════════════════════════════════════════════
+//  OPTIONS FX
+// ════════════════════════════════════════════════════════════════════════════
+const FX = { parallax:true, hdma:false, mode7:false };
+
+function toggleFx(name) {
+  FX[name] = !FX[name];
+  document.getElementById('btn-'+name).classList.toggle('active', FX[name]);
+  // Appliquer/retirer le filtre HDMA
+  bgContainer.filters = FX.hdma ? [hdmaFilter] : null;
+  // Mode 7 : swap ground
+  groundSprite.visible = !FX.mode7;
+  m7Sprite.visible     =  FX.mode7;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  CONSTRUCTION DE SCÈNE PAR SAISON
+// ════════════════════════════════════════════════════════════════════════════
+function buildScene(s) {
+  skySprite.texture   = makeSky(s);
+  hudSprite.texture   = makeHudTex(s);
+  groundSprite.texture= makeGround(s);
+  renderMode7(s, 0);
+
+  // Nuages (BG3 — vitesse 0.5x)
+  if (cloudSprite) { bgContainer.removeChild(cloudSprite); cloudSprite.destroy({texture:true}); cloudSprite=null; }
+  const cTex = makeCloudLayer(s);
+  if (cTex) {
+    cloudSprite = new PIXI.TilingSprite(cTex, SW, 52);
+    cloudSprite.y = 14;
+    bgContainer.addChildAt(cloudSprite, 1);
+  }
+
+  // Arbres BG2 (vitesse 1x)
+  if (treeSprite) { bgContainer.removeChild(treeSprite); treeSprite.destroy({texture:true}); treeSprite=null; }
+  const tTex = makeTreeLayer(s);
+  treeSprite = new PIXI.TilingSprite(tTex, SW, 72);
+  treeSprite.y = GROUND_Y - 72;
+  bgContainer.addChildAt(treeSprite, cloudSprite ? 2 : 1);
+
+  // Appliquer filtres courants
+  bgContainer.filters = FX.hdma ? [hdmaFilter] : null;
+  groundSprite.visible = !FX.mode7;
+  m7Sprite.visible     =  FX.mode7;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PARTICULES & SLIDER
+// ════════════════════════════════════════════════════════════════════════════
+const allSprites=[], allPdata=[];
+let totalAlloc=0, activeCount=0, sliderPct=100;
+
+document.getElementById('pct-slider').addEventListener('input', function() {
+  sliderPct = +this.value;
+  document.getElementById('pct-val').textContent = sliderPct+'%';
+  applySlider();
+});
+
+function applySlider() {
+  activeCount = Math.round(sliderPct/100 * totalAlloc);
+  for(let i=0;i<totalAlloc;i++) allSprites[i].alpha = i<activeCount ? allPdata[i].aBase : 0;
+}
+
+function buildParticles(s) {
+  gpuLayer.removeChildren();
+  allSprites.length=0; allPdata.length=0;
+  for (const grp of s.groups) {
+    for (let i=0; i<grp.n; i++) {
+      const sp=new PIXI.Sprite(grp.tex);
+      sp.anchor.set(0.5);
+      sp.tint  = grp.tints[grp.tints.length*Math.random()|0];
+      sp.x     = Math.round(Math.random()*SW);
+      sp.y     = grp.up ? GROUND_Y+Math.random()*15 : Math.round(Math.random()*(PLAY_H-8));
+      sp.rotation = Math.random()*Math.PI*2;
+      const aBase = 0.65+Math.random()*0.35;
+      sp.alpha = aBase;
+      gpuLayer.addChild(sp);
+      allSprites.push(sp);
+      allPdata.push({
+        vy:   grp.vyMin+Math.random()*(grp.vyMax-grp.vyMin),
+        drift:(Math.random()-0.5)*grp.vxR,
+        spin: grp.spin*(Math.random()<0.5?1:-1),
+        wob:  grp.wob, phase:Math.random()*Math.PI*2,
+        freq: 0.016+Math.random()*0.026, up:grp.up, aBase,
+      });
+    }
+  }
+  totalAlloc=allSprites.length; applySlider();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  HUD UPDATE
+// ════════════════════════════════════════════════════════════════════════════
+function updateHud(s, progress) {
+  hudGfx.clear();
+  hudGfx.beginFill(lerpHex(s.hudTxt,0x000000,0.4)).drawRect(0,SH-2,SW,2).endFill();
+  hudGfx.beginFill(s.hudTxt).drawRect(0,SH-2,SW*Math.min(progress,1)|0,2).endFill();
+  // Indicateurs FX actifs
+  let fxStr='';
+  if(FX.parallax) fxStr+='BG4 ';
+  if(FX.hdma)     fxStr+='HDM ';
+  if(FX.mode7)    fxStr+='M7 ';
+  txtLeft.text = `${s.kana}  ${fxStr.trim()}`;
+  txtLeft.style.fill = s.hudTxt; txtLeft.x=5;
+  txtRight.text = `${String(activeCount).padStart(4,'0')}/${String(totalAlloc).padStart(4,'0')}`;
+  txtRight.style.fill = 0x9090a0; txtRight.x=SW-txtRight.width-5;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  GESTION DES SAISONS
+// ════════════════════════════════════════════════════════════════════════════
+let curSeason=-1, autoMode=true, sTimer=0;
+const SDUR=12;
+let transitioning=false, fadeDir=0, fadeAlpha=0, nextSeason=-1;
+
+function goSeason(idx) {
+  if(transitioning||idx===curSeason) return;
+  nextSeason=idx;
+  if(curSeason===-1){
+    curSeason=idx; sTimer=0;
+    buildScene(SEASONS[idx]); buildParticles(SEASONS[idx]);
+    fadeGfx.alpha=0; return;
+  }
+  transitioning=true; fadeDir=1; sTimer=0;
+}
+
+function toggleAuto() {
+  autoMode=!autoMode;
+  const b=document.getElementById('btn-auto');
+  b.classList.toggle('active',autoMode);
+  b.textContent=autoMode?'▶ AUTO':'■ PAUSE';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  BOUCLE PRINCIPALE
+// ════════════════════════════════════════════════════════════════════════════
+let windTime=0, m7Scroll=0;
+
+app.ticker.add((delta)=>{
+  const dt=delta/60;
+  windTime+=dt;
+
+  // Auto-avancement saison
+  if(autoMode&&!transitioning){ sTimer+=dt; if(sTimer>=SDUR) goSeason((curSeason+1)%4); }
+
+  // Fondu noir entre saisons
+  if(transitioning){
+    if(fadeDir===1){
+      fadeAlpha=Math.min(1,fadeAlpha+dt*3); fadeGfx.alpha=fadeAlpha;
+      if(fadeAlpha>=1){ curSeason=nextSeason; sTimer=0; buildScene(SEASONS[curSeason]); buildParticles(SEASONS[curSeason]); fadeDir=-1; }
+    } else {
+      fadeAlpha=Math.max(0,fadeAlpha-dt*2.5); fadeGfx.alpha=fadeAlpha;
+      if(fadeAlpha<=0) transitioning=false;
+    }
+  }
+
+  const s = SEASONS[Math.max(0,curSeason)];
+
+  // ── 4 couches parallaxe à vitesses authentiques SNES (1:2:4:8) ──────────
+  if (FX.parallax && !transitioning) {
+    const base = 0.18 + Math.sin(windTime*0.5)*0.06; // légère variation de vent
+    // BG4 = montagnes dans skySprite → pas de TilingSprite, mais skySprite.x
+    // BG3 = nuages
+    if (cloudSprite) cloudSprite.tilePosition.x -= base * 0.5;  // 0.5x
+    // BG2 = arbres
+    if (treeSprite)  treeSprite.tilePosition.x  -= base * 1.0;  // 1x
+    // BG1 = sol (static pour le sol, mais on défile le Mode7)
+    m7Scroll += base * 2.0; // 2x
+  }
+
+  // ── Mode 7 : redessiner le sol en perspective chaque frame ───────────────
+  if (FX.mode7 && !transitioning) renderMode7(s, m7Scroll);
+
+  // ── Filtre HDMA : mise à jour du temps ───────────────────────────────────
+  if (FX.hdma) hdmaFilter.uniforms.uTime = windTime;
+
+  updateHud(s, autoMode ? sTimer/SDUR : 0);
+
+  // ── Particules ───────────────────────────────────────────────────────────
+  const wind = Math.sin(windTime*0.75)*1.4 + Math.sin(windTime*1.85)*0.55;
+  for(let i=0;i<activeCount;i++){
+    const d=allPdata[i], sp=allSprites[i];
+    d.phase+=d.freq;
+    sp.x=Math.round(sp.x+d.drift+wind*0.14+Math.sin(d.phase)*d.wob);
+    sp.y=Math.round(sp.y+d.vy);
+    sp.rotation+=d.spin;
+    if(d.up){ if(sp.y<-8){ sp.y=GROUND_Y+8; sp.x=Math.round(Math.random()*SW); }}
+    else     { if(sp.y>PLAY_H+8){ sp.y=-8; sp.x=Math.round(Math.random()*SW); }}
+    if(sp.x>SW+8) sp.x-=SW+16;
+    if(sp.x<-8)   sp.x+=SW+16;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+goSeason(0);
+</script>
+</body>
+</html>

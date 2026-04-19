@@ -1,0 +1,73 @@
+-- main.script
+-- Contrôleur principal : spawn de balles, affichage FPS, stop auto
+
+local SPAWN_PER_SECOND = 10
+local MIN_FPS = 20
+local WINDOW_W = 960
+local WINDOW_H = 1080
+local BALL_RADIUS = 2
+
+local spawn_timer = 0
+local spawn_interval = 1.0 / SPAWN_PER_SECOND
+local active_count = 0
+local stopped = false
+local frame_count = 0
+local elapsed = 0
+
+function init(self)
+	print("DEFOLD INIT CALLED - version 2")
+	math.randomseed(os.time())
+end
+
+function update(self, dt)
+	if stopped then return end
+
+	frame_count = frame_count + 1
+	elapsed = elapsed + dt
+
+	spawn_timer = spawn_timer + dt
+	while spawn_timer >= spawn_interval do
+		spawn_timer = spawn_timer - spawn_interval
+
+		local pos = vmath.vector3(
+			math.random(BALL_RADIUS + 15, WINDOW_W - BALL_RADIUS - 15),
+			math.random(BALL_RADIUS + 15, WINDOW_H - BALL_RADIUS - 15),
+			0
+		)
+		local id = factory.create("#ballfactory", pos)
+		local vel = vmath.vector3(
+			math.random(-200, 200),
+			math.random(-200, 200),
+			0
+		)
+		msg.post(msg.url(nil, id, "ball"), "set_velocity", { velocity = vel })
+		active_count = active_count + 1
+	end
+
+	-- FPS calculé manuellement à partir du dt (plus fiable en web)
+	local fps = 0
+	if dt > 0 then
+		fps = math.floor(1.0 / dt)
+	end
+
+	-- Aussi essayer sys.get_avg_fps()
+	local sys_fps = sys.get_avg_fps()
+	if sys_fps > 0 then fps = sys_fps end
+
+	-- Toujours mettre à jour le GUI
+	local alert = fps > 0 and fps < MIN_FPS and active_count > 50
+	msg.post("#gui", "update_stats", {
+		fps = fps,
+		count = active_count,
+		alert = alert
+	})
+
+	-- Exposer l'état à JavaScript pour le benchmark automatisé
+	if html5 then
+		html5.run_javascript("window.defoldResult={fps:" .. fps .. ",sprites:" .. active_count .. ",stopped:" .. (alert and "true" or "false") .. "}")
+	end
+
+	if alert then
+		stopped = true
+	end
+end
