@@ -164,12 +164,17 @@ Le panneau Convertir MUST inclure un second toggle `[ Taille réelle ]`, accessi
 - **THEN** un pictogramme d'avertissement ou un tooltip SHALL être visible à côté du toggle `[ Taille réelle ]` avec un message du type "Le downscale fausse le rendu de scale2x/pixelsnap, active la taille réelle avant de valider"
 
 ### Requirement: Une zone d'affichage du preview SHALL montrer le PNG renvoyé par /api/preview
-Le dashboard MUST inclure une zone dédiée (dans la zone de comparaison principale ou adjacente au panneau Convertir) pour afficher le PNG base64 renvoyé par `/api/preview`. Cette zone MUST être visible uniquement quand `[ Live preview ]` est ON. Quand `[ Live preview ]` est OFF, la zone SHALL être masquée ou retirée du DOM pour ne pas encombrer l'affichage.
+Le dashboard MUST inclure une zone dédiée (dans la zone de comparaison principale ou adjacente au panneau Convertir) pour afficher le PNG binaire renvoyé par `/api/preview` (corps `Content-Type: image/png`, métadonnées dans les headers `X-Width`/`X-Height`/`X-Elapsed-Ms`/`X-Cache-Hit-Depth`). Cette zone MUST être visible uniquement quand `[ Live preview ]` est ON. Quand `[ Live preview ]` est OFF, la zone SHALL être masquée ou retirée du DOM pour ne pas encombrer l'affichage, et l'URL blob du dernier preview SHALL être libérée via `URL.revokeObjectURL` pour éviter toute fuite mémoire.
 
 #### Scenario: Affichage du preview
-- **GIVEN** une réponse `/api/preview` réussie avec `png_base64: "<data>"` et dimensions
+- **GIVEN** une réponse `/api/preview` `200 OK` au format PNG binaire
 - **WHEN** le client reçoit la réponse
-- **THEN** la zone de preview SHALL afficher un `<img src="data:image/png;base64,<data>">` avec les dimensions renvoyées, et un petit label SHALL indiquer `elapsed_ms` (ex. "Calculé en 320 ms")
+- **THEN** le client SHALL faire `const blob = await res.blob(); const url = URL.createObjectURL(blob);` et afficher `<img src=url>`, et un petit label SHALL indiquer la valeur de `res.headers.get('X-Elapsed-Ms')` (ex. "Calculé en 320 ms") ainsi que les dimensions `X-Width × X-Height`
+
+#### Scenario: Libération du blob URL au toggle OFF
+- **GIVEN** `[ Live preview ]` ON avec un preview affiché (blob URL active dans `lastPreviewUrl`)
+- **WHEN** l'utilisateur bascule `[ Live preview ]` OFF
+- **THEN** le client SHALL appeler `URL.revokeObjectURL(lastPreviewUrl)` et réinitialiser `lastPreviewUrl = null` avant de masquer la zone — aucune blob URL obsolète ne SHALL rester référencée
 
 #### Scenario: Zone masquée hors mode live
 - **GIVEN** `[ Live preview ]` OFF
