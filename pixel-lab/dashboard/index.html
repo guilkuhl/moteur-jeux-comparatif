@@ -1852,7 +1852,15 @@ let fullResMode   = false;
 let previewCtrl   = null;      // AbortController partagé
 let previewTimer  = null;      // id de debounce
 let statusIdleTo  = null;      // timer retour en idle
+let lastPreviewUrl = null;     // blob URL du dernier preview (à révoquer)
 const PREVIEW_DEBOUNCE_MS = 200;
+
+function revokeLastPreviewUrl() {
+  if (lastPreviewUrl) {
+    try { URL.revokeObjectURL(lastPreviewUrl); } catch (_) {}
+    lastPreviewUrl = null;
+  }
+}
 
 function setLiveMode(on) {
   liveMode = !!on;
@@ -1864,6 +1872,7 @@ function setLiveMode(on) {
     firePreview(true);  // immédiat, sans debounce
   } else {
     cancelPreviewInFlight();
+    revokeLastPreviewUrl();
     const timingEl = document.getElementById('cmp-tb-timing');
     if (timingEl) { timingEl.style.display = 'none'; timingEl.textContent = ''; }
     // Si compareRight est un preview volatile, le remettre à la dernière iter
@@ -2009,37 +2018,52 @@ async function firePreview(immediate) {
       body:    JSON.stringify(payload),
       signal:  ctrl.signal,
     });
-    const data = await res.json();
     if (ctrl !== previewCtrl) return; // une autre a pris la main entre-temps
     if (!res.ok) {
-      const msg = (data.errors && data.errors.join(' · ')) || data.error || ('HTTP ' + res.status);
+      let msg = 'HTTP ' + res.status;
+      try {
+        const data = await res.json();
+        msg = (data.errors && data.errors.join(' · ')) || data.error || msg;
+      } catch (_) {}
       setPreviewStatus('error', msg);
       return;
     }
-    renderPreview(data, srcName, pipeline);
+    const blob = await res.blob();
+    if (ctrl !== previewCtrl) return; // annulation après les bytes
+    renderPreview(blob, res.headers, srcName, pipeline);
   } catch (e) {
     if (e.name === 'AbortError') return;  // silencieux
     setPreviewStatus('error', e.message || 'erreur réseau');
   }
 }
 
-function renderPreview(data, srcName, pipeline) {
-  const dataUrl = 'data:image/png;base64,' + data.png_base64;
-  const hitInfo = data.cache_hit_depth ? ' · cache=' + data.cache_hit_depth : '';
-  const label   = 'Live · ' + data.width + '×' + data.height + ' · ' + data.elapsed_ms + ' ms' + hitInfo;
+function renderPreview(blob, headers, srcName, pipeline) {
+  // Nouveau format : PNG binaire + métadonnées en headers (plus de base64).
+  const width      = parseInt(headers.get('X-Width')      || '0', 10);
+  const height     = parseInt(headers.get('X-Height')     || '0', 10);
+  const elapsedMs  = parseInt(headers.get('X-Elapsed-Ms') || '0', 10);
+  const hitDepth   = parseInt(headers.get('X-Cache-Hit-Depth') || '0', 10);
+
+  // Libère l'URL du preview précédent pour éviter la fuite mémoire.
+  revokeLastPreviewUrl();
+  const url = URL.createObjectURL(blob);
+  lastPreviewUrl = url;
+
+  const hitInfo = hitDepth ? ' · cache=' + hitDepth : '';
+  const label   = 'Live · ' + width + '×' + height + ' · ' + elapsedMs + ' ms' + hitInfo;
   const pipeSummary = pipeline.map(s => s.algo + '/' + s.method).join(' → ');
 
   const wasLive = compareRight && compareRight.id === '__live__';
   compareRight = {
     id:        '__live__',
-    src:       dataUrl,
+    src:       url,
     label:     label,
     algo:      'preview',
     method:    pipeSummary,
     params:    {},
     timestamp: '',
   };
-  const timingText = data.elapsed_ms + 'ms' + hitInfo;
+  const timingText = elapsedMs + 'ms' + hitInfo;
   // Transition vers le mode live : rebuild complet (crée l'<img id="cmp-right">).
   // Rafale de previews en mode live : patch in-place pour préserver zoom + divider.
   if (!wasLive || !document.getElementById('cmp-right')) {
@@ -2047,7 +2071,7 @@ function renderPreview(data, srcName, pipeline) {
     const timingEl = document.getElementById('cmp-tb-timing');
     if (timingEl) { timingEl.textContent = timingText; timingEl.style.display = ''; }
   } else {
-    patchLiveCompareRight(dataUrl, label, timingText);
+    patchLiveCompareRight(url, label, timingText);
   }
   setPreviewStatus('ready');
 }

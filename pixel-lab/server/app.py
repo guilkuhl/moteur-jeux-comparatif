@@ -1,4 +1,3 @@
-import base64
 import datetime
 import io
 import json
@@ -6,7 +5,6 @@ import os
 import queue
 import re
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -28,6 +26,7 @@ HISTORY_FILE = ROOT / "history.json"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 from algorithms import bgdetect, denoise, pixelsnap, scale2x, sharpen
+from apply_step import run_step
 
 ALGO_MODULES = {
     "sharpen":   sharpen,
@@ -35,6 +34,10 @@ ALGO_MODULES = {
     "denoise":   denoise,
     "pixelsnap": pixelsnap,
 }
+
+# Sérialise les écritures `history.json` quand plusieurs threads (SSE, convert)
+# veulent la modifier en même temps. Gunicorn `-w 1` garantit un seul process.
+_history_lock = threading.Lock()
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB max upload
@@ -247,8 +250,20 @@ def _run_job(job_id: str, payload: dict):
     try:
         for img_name in images:
             resolved = _resolve_input(img_name)
-            last_input = str(resolved) if resolved else str(INPUTS_DIR / img_name)
+            last_input = Path(resolved) if resolved else (INPUTS_DIR / img_name)
             img_stem   = Path(img_name).stem
+            out_dir    = OUTPUTS_DIR / img_stem
+
+            # Copie de `source.png` au 1er run (parité avec process.py CLI)
+            source_copy = out_dir / "source.png"
+            if not source_copy.exists() and last_input.exists():
+                out_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    Image.open(last_input).save(source_copy)
+                except Exception:
+                    pass  # non bloquant
+
+            img_entries: list[dict] = []
 
             for step_idx, step in enumerate(pipeline):
                 algo   = step["algo"]
@@ -274,43 +289,53 @@ def _run_job(job_id: str, payload: dict):
                     "method": method,
                 })
 
-                cmd = [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "process.py"),
-                    last_input, algo,
-                    f"method={method}",
-                ] + [f"{k}={v}" for k, v in params.items()]
-                # Forcer l'output sous le dossier de l'image originale pour le chaînage
-                if step_idx > 0:
-                    cmd.append(f"name={img_stem}")
-
-                proc = subprocess.Popen(
-                    cmd, cwd=str(ROOT),
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                    env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-                )
-                stdout, stderr = proc.communicate()
-
-                if proc.returncode != 0:
+                # Exécution in-process via le module partagé — plus de subprocess
+                # Python, plus de réimport Pillow/NumPy à chaque étape.
+                try:
+                    produced_path, entry = run_step(
+                        last_input, algo, method, params, out_dir,
+                        name_override=img_stem if step_idx > 0 else None,
+                    )
+                except Exception as e:
                     _push(job_id, {
                         "type":   "step_error",
                         "image":  img_name,
                         "step":   step_idx,
-                        "stderr": stderr[:500],
+                        "stderr": str(e)[:500],
                     })
                     continue
 
-                # Chaînage : input suivant = dernière iter produite (tâche 2.10)
-                iter_file = _find_latest_iter(img_stem)
-                if iter_file:
-                    last_input = str(iter_file)
+                # Format d'entrée history.json aligné sur process.py CLI
+                entry_full = dict(entry)
+                entry_full["output"] = f"outputs/{img_stem}/{entry['output']}"
+                try:
+                    entry_full["source"] = str(last_input.relative_to(ROOT))
+                except ValueError:
+                    entry_full["source"] = str(last_input)
+                img_entries.append(entry_full)
+
+                # Chaînage : l'étape suivante consomme la sortie de celle-ci
+                last_input = produced_path
 
                 _push(job_id, {
                     "type":   "step_done",
                     "image":  img_name,
                     "step":   step_idx,
-                    "output": iter_file.name if iter_file else None,
+                    "output": produced_path.name,
                 })
+
+            # Écriture `history.json` groupée : une seule passe par image
+            # (D6 — élimine N fsync par pipeline de N étapes).
+            if img_entries:
+                with _history_lock:
+                    h = _load_history()
+                    if img_stem not in h:
+                        h[img_stem] = {
+                            "source": f"outputs/{img_stem}/source.png",
+                            "runs":   [],
+                        }
+                    h[img_stem]["runs"].extend(img_entries)
+                    _save_history(h)
 
             _push(job_id, {"type": "image_done", "image": img_name})
 
@@ -319,14 +344,6 @@ def _run_job(job_id: str, payload: dict):
         _jobs[job_id]["state"] = "done"
         with _lock:
             _active_job = None
-
-
-def _find_latest_iter(img_stem: str) -> Path | None:
-    out_dir = OUTPUTS_DIR / img_stem
-    if not out_dir.exists():
-        return None
-    iters = sorted(f for f in out_dir.iterdir() if f.name.startswith("iter_"))
-    return iters[-1] if iters else None
 
 
 # ── DELETE /api/outputs/<stem>/<filename> ────────────────────────────────────
@@ -452,22 +469,11 @@ def _apply_downscale(img: Image.Image, downscale: int | None) -> Image.Image:
 
 
 def _apply_step(img: Image.Image, algo: str, method: str, params: dict) -> Image.Image:
+    # Utilise le cast partagé avec le chemin /api/convert (run_step) — une seule
+    # source de vérité pour les types de paramètres.
+    from apply_step import _cast_params
     fn = ALGO_MODULES[algo].METHODS[method]
-    # Les paramètres arrivent en float (JS), cast vers int pour les params déclarés int
-    meta = {p["name"]: p for p in getattr(ALGO_MODULES[algo], "PARAMS", {}).get(method, [])}
-    typed_params = {}
-    for k, v in params.items():
-        if k in meta and meta[k]["type"] == "int":
-            typed_params[k] = int(v)
-        else:
-            typed_params[k] = float(v) if isinstance(v, (int, float)) else v
-    return fn(img, **typed_params)
-
-
-def _encode_png_base64(img: Image.Image) -> tuple[str, int, int]:
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii"), img.width, img.height
+    return fn(img, **_cast_params(algo, method, params))
 
 
 def _step_key(step: dict) -> tuple:
@@ -541,15 +547,21 @@ def api_preview():
         prefix_key = _pipeline_cache_key(image_name, mtime_ns, downscale, pipeline[: i + 1])
         _cache_put(prefix_key, current)
 
-    b64, w, h = _encode_png_base64(current)
+    buf = io.BytesIO()
+    current.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
-    return jsonify({
-        "png_base64": b64,
-        "width":      w,
-        "height":     h,
-        "elapsed_ms": elapsed_ms,
-        "cache_hit_depth": start_idx,  # utile pour debug / tâche 3.5
-    })
+    # Format binaire : même pattern que /api/bgmask (économie ~33 % vs base64 + JSON).
+    return Response(
+        png_bytes,
+        mimetype="image/png",
+        headers={
+            "X-Width":           str(current.width),
+            "X-Height":          str(current.height),
+            "X-Elapsed-Ms":      str(elapsed_ms),
+            "X-Cache-Hit-Depth": str(start_idx),
+        },
+    )
 
 
 # ── GET /api/bgmask : détection automatique du fond, retour PNG RGBA ─────────

@@ -25,30 +25,30 @@ pip install -r pixel-lab/requirements.txt   # installe Flask
 
 ### Lancement
 
-Ouvrir **deux terminaux** depuis la racine du projet :
+Un seul process Flask sert à la fois le dashboard statique et l'API :
 
 ```bash
-# Terminal 1 — serveur statique (dashboard)
+# Mode dev (équivalent à `python pixel-lab/server/app.py`)
 python pixel-lab/serve.py
 # → http://localhost:5500/dashboard/index.html
 
-# Terminal 2 — API Flask (conversions)
-python pixel-lab/server/app.py
-# → http://localhost:5501
+# Mode prod (nécessite gunicorn)
+pip install -r pixel-lab/requirements-prod.txt
+PIXEL_LAB_PROD=1 python pixel-lab/serve.py
 ```
-
-Puis ouvrir **http://localhost:5500/dashboard/index.html** dans le navigateur.
 
 ### Ports utilisés
 
 | Processus | Port | Configurable |
 |-----------|------|-------------|
-| `serve.py` (dashboard statique) | **5500** | `python serve.py --port 8080` |
-| `server/app.py` (API Flask) | **5501** | modifier `port=5501` dans `app.py` |
+| `serve.py` (Flask + dashboard + API) | **5500** | `PIXEL_LAB_BIND=127.0.0.1:8080 python serve.py` |
+
+⚠️ En mode prod, gunicorn est lancé avec `-w 1` car le verrou `_active_job`
+et le cache preview sont des globaux mémoire. Ne pas monter le nombre de
+workers sans porter le lock vers un mécanisme inter-process.
 
 ### Mode dégradé
 
-Si Flask n'est **pas** lancé, le dashboard reste utilisable en lecture seule :
-- La sidebar affiche les images et itérations existantes.
-- Le panneau "Convertir" affiche le message **"API hors-ligne"** et désactive le bouton `▶ Lancer`.
-- Aucune erreur bloquante — il suffit de lancer `server/app.py` pour réactiver les conversions.
+Si le serveur n'est **pas** lancé, le dashboard ouvert en `file://` reste
+utilisable en lecture seule : la sidebar affiche les itérations existantes,
+et le panneau "Convertir" affiche **"API hors-ligne"** sans erreur bloquante.
