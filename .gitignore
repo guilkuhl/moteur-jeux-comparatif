@@ -1,3 +1,17 @@
 node_modules/
 godot-benchmark/android/
 godot-benchmark/build/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# pixel-lab runtime archives (suppression utilisateur)
+pixel-lab/inputs/_trash/
+pixel-lab/outputs/_trash/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# dev-browser screenshots temp
+.dev-browser/tmp/

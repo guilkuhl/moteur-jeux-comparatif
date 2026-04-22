@@ -10,27 +10,62 @@
     --border: #2e2e42; --accent: #7c6fef; --accent2: #ef6fba;
     --text: #e2e2f0; --muted: #888899; --green: #6fef9e;
     --radius: 10px; --font: 'Segoe UI', system-ui, sans-serif;
+    --left-w: 280px; --right-w: 0px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); height: 100vh; overflow: hidden; }
 
-  /* ── TOPBAR ── */
-  .topbar {
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    padding: 0 20px; display: flex; align-items: center; gap: 16px;
-    height: 48px; flex-shrink: 0;
+  /* ── APP SHELL : 3 colonnes grid plein écran ── */
+  .app-shell {
+    display: grid;
+    grid-template-columns: var(--left-w) 1fr var(--right-w);
+    height: 100vh;
+    transition: grid-template-columns 0.22s ease;
   }
-  .badge { background: var(--accent); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
-  .topbar h1 { font-size: 1rem; font-weight: 700; white-space: nowrap; }
-  #header-info { font-size: .78rem; color: var(--muted); white-space: nowrap; }
 
-  /* ── LAYOUT PRINCIPAL ── */
-  .main-layout { flex: 1; display: flex; overflow: hidden; }
-
-  /* ── SIDEBAR IMAGES ── */
-  .sidebar {
-    width: 220px; min-width: 180px; flex-shrink: 0;
+  /* ── COLONNE GAUCHE ── */
+  #left-col {
     background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    position: relative; box-shadow: 2px 0 8px rgba(0,0,0,.2);
+  }
+  #left-col.collapsed { overflow: visible; }
+  .left-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    height: 50px;
+  }
+  .left-header h1 { font-size: .85rem; font-weight: 700; }
+  .left-header #header-info { font-size: .68rem; color: var(--muted); margin-left: auto; }
+
+  /* ── COLONNE CENTRALE (comparateur plein écran) ── */
+  #center-col {
+    position: relative; height: 100vh; overflow: hidden; background: #000;
+  }
+
+  /* ── COLONNE DROITE (historique) ── */
+  #right-col {
+    background: var(--surface); border-left: 1px solid var(--border);
+    height: 100vh; overflow-y: auto; box-shadow: -2px 0 8px rgba(0,0,0,.2);
+  }
+  .app-shell[data-right-open="false"] #right-col { display: none; }
+
+  /* ── Boutons de rétractation ── */
+  .collapse-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 48px; border-radius: 0 6px 6px 0;
+    background: var(--surface2); border: 1px solid var(--border); border-left: none;
+    color: var(--muted); cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 300;
+  }
+  .collapse-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .collapse-left { right: -22px; }
+  .collapse-right { left: -22px; border-radius: 6px 0 0 6px; border-right: none; border-left: 1px solid var(--border); }
+
+  /* ── SIDEBAR IMAGES (dans left-col) ── */
+  .sidebar {
+    flex: 1 1 auto; min-height: 100px;
     display: flex; flex-direction: column; overflow: hidden;
   }
   .sidebar-header {
@@ -58,20 +93,22 @@
   .img-item .item-name { font-size: .8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .img-item .item-meta { font-size: .68rem; color: var(--muted); margin-top: 2px; }
 
-  /* ── CONTENT ── */
-  .content { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+  /* ── CONTENT (dans #center-col) ── */
+  .content { height: 100%; display: flex; flex-direction: column; }
+  .content .comp-wrap:not(:has(.compare-card)) { display: none; }
+  .content .comp-wrap:has(.compare-card) { flex: 1 1 auto; min-height: 0; }
+  .content .comp-wrap:has(.compare-card) .comp-label { display: none; }
+  .content .compare-card { height: 100%; border-radius: 0; border: none; position: relative; }
+  .content .compare-body { height: 100%; }
+  /* Grille d'iters : déplacée dans #right-col ; masquée dans le flow central */
+  .content #iter-grid, .content .toolbar, .content #detail-bar-wrap { display: none; }
 
   /* ── COMPARE SLIDER ── */
   .compare-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .compare-header {
-    padding: 8px 12px; display: flex; align-items: center; gap: 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  .compare-header label { font-size: .75rem; color: var(--muted); }
   .clabel { font-size: .8rem; font-weight: 700; }
 
   /* Zone zoom + divider */
-  .compare-body { position: relative; overflow: hidden; user-select: none; min-height: 80px; }
+  .compare-body { position: relative; overflow: hidden; user-select: none; min-height: 80px; cursor: crosshair; }
   /* cmp-zoom-layer : position relative pour que img-base définisse la hauteur du body */
   .cmp-zoom-layer {
     position: relative;
@@ -95,23 +132,20 @@
   }
   .compare-divider {
     position: absolute; top: 0; bottom: 0; width: 3px;
-    background: #fff; box-shadow: 0 0 8px rgba(0,0,0,.6);
-    z-index: 100; cursor: ew-resize; /* au-dessus du zoom layer */
+    background: var(--accent); box-shadow: 0 0 6px rgba(0,0,0,.5);
+    z-index: 100; cursor: ew-resize;
   }
   .compare-handle {
-    position: absolute; top: 50%; transform: translate(-50%,-50%);
-    width: 28px; height: 28px; border-radius: 50%; background: #fff;
+    position: absolute;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff;
+    box-shadow: 0 0 0 2px var(--accent), 0 3px 12px rgba(0,0,0,.7);
+    cursor: ew-resize; user-select: none;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,.4); font-size: .8rem; color: #333;
+    font-size: 1.1rem; color: #fff; font-weight: bold;
+    z-index: 102;
   }
 
-  /* Boutons zoom dans le footer */
-  .compare-footer {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 5px 12px; font-size: .72rem; color: var(--muted);
-    border-top: 1px solid var(--border); gap: 8px;
-  }
-  .compare-footer .flabel { background: var(--surface2); padding: 2px 8px; border-radius: 4px; }
   .zoom-controls { display: flex; align-items: center; gap: 4px; }
   .zbtn {
     width: 24px; height: 24px; border-radius: 5px; border: 1px solid var(--border);
@@ -214,9 +248,9 @@
 
   /* ── CONVERT PANEL ── */
   .convert-panel {
-    width: 300px; min-width: 260px; flex-shrink: 0;
-    background: var(--surface); border-left: 1px solid var(--border);
-    display: flex; flex-direction: column; overflow: hidden;
+    flex: 0 0 auto; max-height: 60vh;
+    background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
   }
   .convert-panel.degraded { opacity: .7; }
   .cp-header {
@@ -237,20 +271,52 @@
   .step-row {
     background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
     padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+    overflow: hidden; min-width: 0;
   }
-  .step-row-top { display: flex; align-items: center; gap: 6px; }
+  .step-row-top {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 6px;
+    align-items: center;
+    min-width: 0;
+  }
+  .step-row-top .step-enable { grid-column: 1; grid-row: 1; }
+  .step-row-top select:nth-of-type(1) { grid-column: 2; grid-row: 1; min-width: 0; }
+  .step-row-top select:nth-of-type(2) { grid-column: 1 / 3; grid-row: 2; min-width: 0; }
+  .step-row-top .step-ctrl { grid-column: 3; grid-row: 1 / 3; align-self: center; }
   .step-row select {
-    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    flex: 1 1 60px; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border);
     color: var(--text); border-radius: 4px; padding: 3px 6px; font-size: .78rem;
   }
   .step-row select:focus { outline: none; border-color: var(--accent); }
-  .step-ctrl { display: flex; gap: 3px; }
+  .step-ctrl { display: flex; gap: 3px; flex-shrink: 0; }
   .step-btn {
     width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border);
     background: var(--surface); color: var(--muted); font-size: .75rem; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
   .step-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .step-btn.step-remove:hover { border-color: #ef6060; color: #ef6060; }
+
+  /* Toggle d'activation du bloc */
+  .step-enable {
+    flex-shrink: 0; accent-color: var(--accent);
+    width: 14px; height: 14px; cursor: pointer;
+    margin: 0;
+  }
+  .step-row.disabled {
+    opacity: .45;
+    background: repeating-linear-gradient(
+      45deg, var(--surface2), var(--surface2) 6px,
+      rgba(0,0,0,.15) 6px, rgba(0,0,0,.15) 12px
+    );
+  }
+  .step-row.disabled .step-params { pointer-events: none; }
+  .step-row.disabled .step-row-top select { color: var(--muted); }
+
   .step-params { display: flex; flex-wrap: wrap; gap: 6px; }
   .param-field { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 80px; }
   .param-field label { font-size: .62rem; color: var(--muted); }
@@ -342,12 +408,371 @@
     user-select: none;
   }
 
+  /* ── TOOLBAR OVERLAY COMPARATEUR ── */
+  .cmp-toolbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 40px; z-index: 200;
+    background: rgba(10, 10, 20, 0.55);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  }
+  .cmp-tb-sprite {
+    font-size: .72rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 160px; flex-shrink: 0;
+  }
+  .cmp-tb-labels {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .cmp-tb-sep { color: var(--muted); font-size: .8rem; }
+  .cmp-tb-timing {
+    font-size: .65rem; color: var(--muted);
+    background: rgba(0,0,0,.4); padding: 1px 6px; border-radius: 3px; margin-left: 4px;
+  }
+
   /* ── PIXEL AXES OVERLAY ── */
   .pixel-axes-canvas {
     position: absolute; top: 0; left: 0;
     pointer-events: none; z-index: 200;
     width: 100%; height: 100%;
   }
+
+  /* ── LIVE PREVIEW ── */
+  .live-row {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .live-row label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .75rem; color: var(--text); cursor: pointer;
+    user-select: none;
+  }
+  .live-row label input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+  .live-row .fullres-wrap { display: none; align-items: center; gap: 6px; }
+  .convert-panel[data-live="on"] .live-row .fullres-wrap { display: inline-flex; }
+  .live-row .warn-icon {
+    color: #f0c040; font-size: .85rem; cursor: help;
+    display: none;
+  }
+  .live-row.has-size-sensitive .warn-icon { display: inline; }
+
+  /* ── BG DETECTION ROW ── */
+  .bg-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 10px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    font-size: .72rem;
+  }
+  .bg-row button { padding: 3px 8px; font-size: .7rem; }
+  .bg-row label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+  .bg-row label input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+  .bg-row input[type="number"] {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 3px;
+  }
+  .bg-row input[type="number"]:focus { outline: none; border-color: var(--accent); }
+  .bg-row button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* Overlay masque de fond superposée à l'image source — opacity 0.5 pour rester contextuel */
+  .bg-mask-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; image-rendering: pixelated;
+    z-index: 50; opacity: 0.5;
+  }
+  .bg-mask-overlay.inverted { filter: invert(1); }
+
+  /* Grille pixel overlay (canvas) — z-index entre cmp-left et cmp-overlay */
+  #grid-overlay {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; image-rendering: pixelated;
+    mix-blend-mode: difference; z-index: 45;
+  }
+
+  /* HUD coordonnées pixel */
+  #pixel-hud {
+    position: fixed; top: 0; left: 0;
+    background: rgba(10,10,20,0.85); color: #fff;
+    font-family: 'Consolas', ui-monospace, monospace;
+    font-size: .72rem; padding: 4px 8px; border-radius: 4px;
+    pointer-events: none; z-index: 9999;
+    display: none; gap: 8px;
+  }
+  #pixel-hud.visible { display: inline-flex; }
+  #pixel-hud .swatch {
+    display: inline-block; width: 12px; height: 12px;
+    border-radius: 2px; border: 1px solid #444;
+    vertical-align: middle;
+  }
+
+  /* Diff overlay */
+  #diff-overlay {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; image-rendering: pixelated;
+    z-index: 48;
+  }
+  #diff-count {
+    font-size: .68rem; color: var(--accent2); margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  /* Cheat-sheet overlay */
+  #kbd-help {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(10,10,20,0.95); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px 22px; z-index: 10000;
+    display: none; min-width: 300px; box-shadow: 0 8px 40px rgba(0,0,0,.6);
+  }
+  #kbd-help.visible { display: block; }
+  #kbd-help h3 { font-size: .82rem; margin-bottom: 10px; color: var(--accent); }
+  #kbd-help dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .72rem; }
+  #kbd-help dt { font-family: 'Consolas', ui-monospace, monospace; color: var(--accent2); }
+  #kbd-help dd { color: var(--text); }
+
+  /* Toasts */
+  #toast-stack {
+    position: fixed; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+    z-index: 10001; pointer-events: none; max-width: 320px;
+  }
+  .toast {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px; padding: 10px 14px;
+    font-size: .75rem; color: var(--text);
+    box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    pointer-events: auto; opacity: 0; transform: translateX(20px);
+    transition: opacity .22s, transform .22s;
+  }
+  .toast.show { opacity: 1; transform: translateX(0); }
+  .toast.success { border-left-color: var(--green); }
+  .toast.error   { border-left-color: #ef6060; }
+
+  /* Modal de confirmation */
+  #confirm-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.65);
+    z-index: 10002; display: none;
+    align-items: center; justify-content: center;
+  }
+  #confirm-modal.visible { display: flex; }
+  #confirm-modal .modal-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px; min-width: 320px; max-width: 480px;
+    box-shadow: 0 10px 48px rgba(0,0,0,.7);
+  }
+  #confirm-modal h3 { font-size: .92rem; margin-bottom: 10px; color: var(--text); }
+  #confirm-modal p { font-size: .8rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+  #confirm-modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #confirm-modal .modal-actions button {
+    padding: 6px 14px; font-size: .78rem; border-radius: 5px;
+    border: 1px solid var(--border); cursor: pointer;
+    background: var(--surface2); color: var(--text);
+  }
+  #confirm-modal .modal-actions .primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+  }
+
+  /* Drag-drop sur sidebar */
+  .sidebar.dragging-over {
+    outline: 2px dashed var(--accent);
+    outline-offset: -4px;
+    background: rgba(124,111,239,.08);
+  }
+  #drop-hint {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    color: var(--accent); font-size: .85rem; font-weight: 700;
+    background: rgba(10,10,20,.7); pointer-events: none;
+    z-index: 500;
+  }
+  .sidebar.dragging-over #drop-hint { display: flex; }
+
+  /* Menu contextuel .img-item */
+  .img-item { position: relative; }
+  .img-item .ctx-btn {
+    position: absolute; top: 6px; right: 6px;
+    width: 20px; height: 20px; border-radius: 3px;
+    background: rgba(0,0,0,.25); border: none; color: var(--muted);
+    font-size: .8rem; cursor: pointer; line-height: 1;
+    opacity: 0; transition: opacity .12s;
+  }
+  .img-item:hover .ctx-btn { opacity: 1; }
+  .img-item .ctx-btn:hover { color: var(--text); background: var(--accent); }
+  .ctx-menu {
+    position: fixed; z-index: 10003;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px; min-width: 160px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.6);
+  }
+  .ctx-menu button {
+    display: block; width: 100%; text-align: left;
+    padding: 6px 10px; font-size: .76rem;
+    background: transparent; border: none; color: var(--text);
+    cursor: pointer; border-radius: 4px;
+  }
+  .ctx-menu button:hover { background: var(--accent); color: #fff; }
+
+  /* Orphelins */
+  .sidebar-footer .orphan-badge {
+    font-size: .68rem; color: var(--muted); cursor: pointer;
+    padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .sidebar-footer .orphan-badge:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Grille warning badge */
+  #grid-warning {
+    font-size: .6rem; color: #f0c040; margin-left: 4px;
+    white-space: nowrap; display: none;
+  }
+  #grid-warning.visible { display: inline; }
+
+  /* Slicing panel + overlay */
+  .slicing-panel {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 14px; display: none; flex-direction: column; gap: 8px;
+    flex-shrink: 0; max-height: 40vh; overflow-y: auto;
+  }
+  .slicing-panel.visible { display: flex; }
+  .slicing-panel .sp-title {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); font-weight: 700;
+  }
+  .slicing-panel .sp-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px;
+    font-size: .68rem;
+  }
+  .slicing-panel .sp-grid label { display: flex; flex-direction: column; gap: 2px; }
+  .slicing-panel .sp-grid input {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); padding: 3px 5px; font-size: .72rem;
+  }
+  .slicing-panel .sp-actions { display: flex; gap: 6px; }
+  .slicing-panel .sp-actions button {
+    flex: 1; padding: 5px 8px; font-size: .72rem;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text); cursor: pointer;
+  }
+  .slicing-panel .sp-actions button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .slicing-panel .sp-actions button.active {
+    background: var(--accent2); border-color: var(--accent2); color: #fff;
+  }
+
+  #slicing-overlay {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; image-rendering: pixelated;
+    z-index: 47;
+  }
+  .compare-body.slicing-edit-mode { cursor: crosshair !important; }
+  .compare-body.slicing-edit-mode #slicing-overlay { pointer-events: auto; }
+
+  .slicing-popover {
+    position: fixed; z-index: 10010;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px; min-width: 180px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.6);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .slicing-popover .sp-cell-info {
+    font-size: .68rem; color: var(--muted);
+    padding: 4px 6px; border-bottom: 1px solid var(--border);
+  }
+  .slicing-popover button {
+    text-align: left; padding: 6px 10px; font-size: .76rem;
+    background: transparent; border: none; color: var(--text);
+    cursor: pointer; border-radius: 4px;
+  }
+  .slicing-popover button:hover { background: var(--accent); color: #fff; }
+  #grid-step {
+    width: 44px; padding: 2px 4px; font-size: .68rem;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); display: none;
+  }
+  #grid-step.visible { display: inline-block; }
+  #grid-step-label {
+    font-size: .62rem; color: var(--muted); letter-spacing: .4px;
+    margin-left: 4px; display: none; white-space: nowrap;
+  }
+  #grid-step-label.visible { display: inline-block; }
+  #grid-step-label.adapted { font-style: italic; color: #ffb060; }
+
+  /* Personnalisation visuelle de la grille */
+  #grid-color, #grid-opacity, #grid-blend {
+    display: none;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: .68rem;
+  }
+  #grid-color.visible, #grid-opacity.visible, #grid-blend.visible { display: inline-block; }
+  #grid-color { width: 24px; height: 22px; padding: 1px; cursor: pointer; }
+  #grid-opacity { width: 60px; vertical-align: middle; }
+  #grid-blend { width: 80px; padding: 2px 4px; }
+
+  /* Bande de progression en haut du comparateur quand un preview est en vol */
+  .compare-card.computing { position: relative; }
+  .compare-card.computing::before {
+    content: '';
+    position: absolute; left: 0; right: 0; top: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    background-size: 50% 100%; background-repeat: no-repeat;
+    animation: cmp-scan 1.1s linear infinite;
+    z-index: 150; pointer-events: none;
+  }
+  @keyframes cmp-scan {
+    0%   { background-position: -50% 0; }
+    100% { background-position: 150% 0; }
+  }
+  .compare-card.computing .cmp-compute-badge {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(239,111,186,.9); color: #fff;
+    font-size: .62rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    display: flex; align-items: center; gap: 5px;
+    z-index: 151; pointer-events: none;
+  }
+  .compare-card.computing .cmp-compute-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; animation: live-pulse 1s ease-in-out infinite;
+  }
+  .compare-card .cmp-compute-badge { display: none; }
+  .compare-card.error { outline: 2px solid #ef6060; outline-offset: -2px; }
+  .compare-card.error .cmp-error-badge {
+    position: absolute; top: 8px; right: 8px;
+    background: #ef6060; color: #fff;
+    font-size: .62rem; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    z-index: 151; max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .compare-card .cmp-error-badge { display: none; }
+  .compare-card.error .cmp-error-badge { display: block; }
+
+  .status-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border); margin-left: auto; flex-shrink: 0;
+    transition: background .15s;
+  }
+  .status-dot.idle      { background: var(--border); }
+  .status-dot.inflight  { background: #f0c040; animation: live-pulse 1s ease-in-out infinite; }
+  .status-dot.ready     { background: var(--green); }
+  .status-dot.error     { background: #ef6060; }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .3; }
+  }
+
+  /* Marque visuelle sur la miniature "active-for-preview" */
+  .convert-panel[data-live="on"] ~ * .img-item.active,
+  body.live-on .img-item.active {
+    border-left-color: var(--accent2);
+    background: linear-gradient(90deg, rgba(239,111,186,.15), var(--surface2));
+  }
+  body.live-on .img-item.active::after {
+    content: '● live'; position: absolute; right: 8px; top: 6px;
+    font-size: .55rem; color: var(--accent2); font-weight: 700;
+    letter-spacing: .6px; text-transform: uppercase;
+  }
+  body.live-on .img-item { position: relative; }
 
   /* ── DELETE BUTTON ── */
   .iter-del-btn {
@@ -368,35 +793,37 @@
 </head>
 <body>
 
-<!-- ── TOPBAR ── -->
-<div class="topbar">
-  <span class="badge">⚡ Pixel Lab</span>
-  <h1>Comparateur d'itérations</h1>
-  <span id="header-info">Chargement…</span>
-</div>
+<div class="app-shell" id="app-shell" data-right-open="false">
 
-<!-- ── LAYOUT ── -->
-<div class="main-layout">
-
-<!-- ── SIDEBAR ── -->
-<aside class="sidebar">
-  <div class="sidebar-header">
-    <span>Images source</span>
-    <span class="sidebar-count" id="sidebar-count">0</span>
+<!-- ── COLONNE GAUCHE : header + sidebar + convert-panel ── -->
+<aside id="left-col">
+  <div class="left-header">
+    <span class="badge">⚡</span>
+    <h1>Pixel Lab</h1>
+    <span id="cp-status-dot" style="font-size:.62rem;color:var(--muted)" title="Statut du serveur Flask">…</span>
+    <span id="header-info">…</span>
   </div>
-  <div class="sidebar-list" id="sidebar-list"></div>
-  <div class="sidebar-footer">
-    <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" title="Tout sélectionner">
-    <span class="sel-count" id="sel-count">0 sélectionnée(s)</span>
-  </div>
-</aside>
 
-<!-- ── CONTENT ── -->
-<!-- ── PANNEAU CONVERT ── -->
-<aside class="convert-panel" id="convert-panel">
+  <!-- Sidebar images -->
+  <div class="sidebar" id="sidebar-root">
+    <div class="sidebar-header">
+      <span>Images source</span>
+      <span class="sidebar-count" id="sidebar-count">0</span>
+    </div>
+    <div class="sidebar-list" id="sidebar-list"></div>
+    <div class="sidebar-footer">
+      <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" title="Tout sélectionner">
+      <span class="sel-count" id="sel-count">0 sélectionnée(s)</span>
+      <span id="orphan-badge" class="orphan-badge" style="display:none" onclick="openOrphanCleanupModal()" title="Nettoyer les entrées orphelines de history.json">0 orphelins</span>
+      <button class="btn" style="margin-left:auto;padding:3px 8px;font-size:.68rem" onclick="toggleRightPanel()" title="Historique des iters (H)">📜</button>
+    </div>
+    <div id="drop-hint">📥 Dépose l'image ici</div>
+  </div>
+
+  <!-- Panneau Convertir -->
+  <aside class="convert-panel" id="convert-panel">
   <div class="cp-header">
     <span class="cp-title">Convertir</span>
-    <span id="cp-status-dot" style="margin-left:auto;font-size:.65rem;color:var(--muted)">…</span>
   </div>
   <div class="cp-body" id="cp-body">
 
@@ -405,6 +832,37 @@
       API hors-ligne — démarre<br>
       <code>python pixel-lab/server/app.py</code><br>
       pour activer les conversions.
+    </div>
+
+    <!-- Live preview row -->
+    <div class="live-row" id="live-row">
+      <label title="Preview temps réel — pas de persistance">
+        <input type="checkbox" id="live-toggle" onchange="setLiveMode(this.checked)" disabled>
+        Live preview
+      </label>
+      <span class="fullres-wrap">
+        <label title="Désactive le downscale 256 px (plus lent)">
+          <input type="checkbox" id="fullres-toggle" onchange="setFullResMode(this.checked)">
+          Taille réelle
+        </label>
+        <span class="warn-icon" title="Le pipeline contient scale2x ou pixelsnap/block : active la taille réelle pour un rendu fidèle">⚠</span>
+      </span>
+      <span class="status-dot idle" id="preview-status" title="Preview : idle"></span>
+    </div>
+
+    <!-- BG detection row -->
+    <div class="bg-row" id="bg-row">
+      <button class="btn" id="btn-detect-bg" onclick="toggleBgOverlay()" title="Afficher le masque de fond détecté" disabled>🎯 Détecter fond</button>
+      <input type="number" id="bg-tolerance" min="0" max="50" value="8" title="Tolérance de couleur pour la détection" style="width:52px;padding:2px 5px;font-size:.72rem" disabled>
+      <label title="Quand activé, denoise/sharpen préservent les pixels de fond originaux">
+        <input type="checkbox" id="preserve-bg-toggle" onchange="setPreserveBg(this.checked)" disabled>
+        Préserver fond
+      </label>
+      <label title="Inverse visuellement le masque (affiche le premier-plan au lieu du fond). N'affecte PAS les payloads /api/convert ou /api/preview.">
+        <input type="checkbox" id="bg-invert-toggle" onchange="setBgInvert(this.checked)" disabled>
+        Inverser masque
+      </label>
+      <span id="bg-detected-info" style="font-size:.68rem;color:var(--muted)">—</span>
     </div>
 
     <!-- Preset -->
@@ -436,19 +894,127 @@
     </button>
 
   </div>
-</aside>
+  </aside><!-- end .convert-panel -->
 
-<div class="content" id="content">
-  <div class="empty-wrap">
-    <div class="empty-state" id="empty-state">
-      <div class="icon">🎮</div>
-      <p>Lance ton premier traitement pour commencer :</p>
-      <p style="margin-top:8px"><code>py scripts/workflow.py inputs/mon_image.png</code></p>
-      <p style="margin-top:8px;font-size:.78rem">Puis recharge cette page.</p>
+  <!-- Panneau Contraintes -->
+  <aside class="slicing-panel" id="constraints-panel" style="border-top:1px solid var(--border)">
+    <div class="sp-title">Contraintes pixel</div>
+    <label style="font-size:.72rem"><input type="checkbox" id="cn-enabled"> Activer contraintes</label>
+    <div class="sp-grid">
+      <label>Multiple de N<input type="number" id="cn-muln" min="0" max="1024" value="16"></label>
+      <label><input type="checkbox" id="cn-pot"> Forcer POT</label>
+    </div>
+    <div class="sp-actions">
+      <button type="button" onclick="validateConstraints()" class="primary">Valider contraintes</button>
+    </div>
+    <div id="constraint-report" style="font-size:.68rem;color:var(--muted);max-height:120px;overflow-y:auto"></div>
+  </aside>
+
+  <!-- Panneau Auto-tile -->
+  <aside class="slicing-panel" id="autotile-panel" style="border-top:1px solid var(--border)">
+    <div class="sp-title">Auto-tile (Wang)</div>
+    <label style="font-size:.72rem">Mode
+      <select id="at-mode" onchange="updateAutotileSlots()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:.72rem;width:100%">
+        <option value="wang16">Wang 16 (2 tiles)</option>
+        <option value="wang47">Wang 47 blob (4 tiles)</option>
+        <option value="wang256">Wang 256 (2 tiles, approx)</option>
+      </select>
+    </label>
+    <label style="font-size:.72rem">Taille tile
+      <select id="at-size" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:.72rem;width:100%">
+        <option value="16" selected>16 px</option>
+        <option value="32">32 px</option>
+        <option value="64">64 px</option>
+        <option value="8">8 px</option>
+        <option value="128">128 px</option>
+      </select>
+    </label>
+    <div id="at-slots" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.68rem"></div>
+    <div class="sp-actions">
+      <button type="button" onclick="generateAutotile()" class="primary">Générer</button>
+    </div>
+  </aside>
+
+  <!-- Panneau Cleanup -->
+  <aside class="slicing-panel" id="cleanup-panel" style="border-top:1px solid var(--border)">
+    <div class="sp-title">Nettoyage</div>
+    <div class="sp-actions" style="flex-wrap:wrap">
+      <button type="button" onclick="detectDuplicates()">Doublons</button>
+      <button type="button" onclick="detectSubpixel()">Sous-pixel</button>
+      <button type="button" onclick="normalizeCells()" class="primary">Normaliser</button>
+      <button type="button" onclick="exportCleanupReport()">Rapport</button>
+    </div>
+    <div id="cleanup-result" style="font-size:.68rem;color:var(--muted);max-height:120px;overflow-y:auto"></div>
+  </aside>
+
+  <!-- Panneau Export -->
+  <aside class="slicing-panel" id="export-panel" style="border-top:1px solid var(--border)">
+    <div class="sp-title">Export</div>
+    <label style="font-size:.72rem">Format
+      <select id="ex-format" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:.72rem;width:100%">
+        <option value="json_phaser">PNG atlas + JSON Phaser</option>
+        <option value="xml_starling">PNG atlas + XML Starling</option>
+        <option value="css_sprites">PNG atlas + CSS sprites</option>
+        <option value="png_atlas">PNG atlas seul</option>
+        <option value="individual">Sprites individuels (ZIP)</option>
+      </select>
+    </label>
+    <label style="font-size:.72rem">Template nom
+      <input type="text" id="ex-template" value="{basename}_{col}_{row}" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:.72rem;width:100%">
+    </label>
+    <label style="font-size:.72rem"><input type="checkbox" id="ex-pivot"> Inclure pivot</label>
+    <div class="sp-actions">
+      <button type="button" onclick="exportSpritesheet()" class="primary">Exporter</button>
+    </div>
+  </aside>
+
+  <!-- Panneau Slicing -->
+  <aside class="slicing-panel" id="slicing-panel">
+    <div class="sp-title">Découpe (slicing)</div>
+    <div class="sp-grid">
+      <label>cols<input type="number" id="sp-cols" min="1" max="256" value="8"></label>
+      <label>rows<input type="number" id="sp-rows" min="1" max="256" value="4"></label>
+      <label>cellW<input type="number" id="sp-cellw" min="1" max="1024" value="16"></label>
+      <label>cellH<input type="number" id="sp-cellh" min="1" max="1024" value="16"></label>
+      <label>gapX<input type="number" id="sp-gapx" min="0" max="64" value="0"></label>
+      <label>gapY<input type="number" id="sp-gapy" min="0" max="64" value="0"></label>
+      <label>marginX<input type="number" id="sp-marginx" min="0" max="64" value="0"></label>
+      <label>marginY<input type="number" id="sp-marginy" min="0" max="64" value="0"></label>
+    </div>
+    <div class="sp-actions">
+      <button type="button" onclick="applySlicing()" class="primary">Appliquer</button>
+      <button type="button" id="sp-edit-btn" onclick="toggleSlicingEditMode()">Éditer cellules…</button>
+      <button type="button" onclick="clearSlicing()" title="Retirer la grille">×</button>
+    </div>
+  </aside>
+
+  <button class="collapse-btn collapse-left" onclick="toggleLeftPanel()" title="Rétracter la sidebar">‹</button>
+</aside><!-- end #left-col -->
+
+<!-- ── COLONNE CENTRALE : comparateur plein écran ── -->
+<main id="center-col">
+  <div class="content" id="content">
+    <div class="empty-wrap">
+      <div class="empty-state" id="empty-state">
+        <div class="icon">🎮</div>
+        <p>Sélectionne une image dans la sidebar.</p>
+      </div>
     </div>
   </div>
-</div><!-- end content -->
-</div><!-- end main-layout -->
+</main>
+
+<!-- ── COLONNE DROITE : panneau Historique ── -->
+<aside id="right-col">
+  <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:.68rem;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700">
+    <span>Historique des iters</span>
+    <button class="btn" style="margin-left:auto;padding:2px 6px;font-size:.72rem" onclick="toggleRightPanel()">×</button>
+  </div>
+  <div id="right-toolbar" style="padding:8px 12px;border-bottom:1px solid var(--border)"></div>
+  <div id="right-grid" style="padding:10px"></div>
+  <button class="collapse-btn collapse-right" onclick="toggleRightPanel()" title="Fermer le panneau">›</button>
+</aside>
+
+</div><!-- end .app-shell -->
 
 <script>
 // ─── État global ──────────────────────────────────────────────────────────────
@@ -458,6 +1024,9 @@ let compareLeft = null;
 let compareRight = null;
 let sortDesc = true;          // true = plus récent en haut
 let filterAlgo = 'all';       // 'all' | 'sharpen' | 'scale2x' | 'denoise'
+// Expose l'état aux extensions (bg-invert, grid, orphelins, input-mgmt)
+window.__appState = () => ({ activeImage, history, compareLeft, compareRight });
+let __orphanSet = new Set();
 
 // ─── Chargement ───────────────────────────────────────────────────────────────
 async function loadHistory() {
@@ -465,9 +1034,31 @@ async function loadHistory() {
     const res = await fetch('../history.json?t=' + Date.now());
     if (!res.ok) throw new Error();
     history = await res.json();
+    // Détecte les orphelins en comparant aux inputs réels
+    try {
+      const inputsResp = await fetch('/api/inputs?t=' + Date.now());
+      if (inputsResp.ok) {
+        const inputs = await inputsResp.json();
+        const stems = inputs.map(i => i.name.replace(/\.[^.]+$/, ''));
+        if (typeof window.__filterOrphans === 'function') {
+          __orphanSet = window.__filterOrphans(Object.keys(history), stems);
+        }
+      }
+    } catch (_) {}
     renderSidebar();
-    const keys = Object.keys(history);
-    if (keys.length) selectImage(mostRecentIndex());
+    const keys = Object.keys(history).filter(k => !__orphanSet.has(k));
+    if (keys.length) {
+      // si upload vient de se terminer, préfère cette image
+      const pending = window.__pendingActivate;
+      if (pending) {
+        const stem = pending.replace(/\.[^.]+$/, '');
+        const allKeys = Object.keys(history);
+        const idx = allKeys.indexOf(stem);
+        window.__pendingActivate = null;
+        if (idx >= 0) { selectImage(idx); updateHeader(); return; }
+      }
+      selectImage(mostRecentIndex());
+    }
     updateHeader();
   } catch {
     document.getElementById('header-info').textContent = 'history.json introuvable';
@@ -496,6 +1087,7 @@ function mostRecentIndex() {
   let best = 0;
   let bestTs = '';
   keys.forEach((name, idx) => {
+    if (__orphanSet.has(name)) return;
     const ts = lastTimestamp(history[name]);
     if (ts > bestTs) { bestTs = ts; best = idx; }
   });
@@ -506,23 +1098,25 @@ function renderSidebar() {
   const list  = document.getElementById('sidebar-list');
   const count = document.getElementById('sidebar-count');
   const allKeys = Object.keys(history);
+  const visibleKeys = allKeys.filter(k => !__orphanSet.has(k));
 
   // Trier du plus récent au plus ancien
-  const sorted = [...allKeys].sort((a, b) =>
+  const sorted = [...visibleKeys].sort((a, b) =>
     lastTimestamp(history[b]).localeCompare(lastTimestamp(history[a]))
   );
 
-  count.textContent = allKeys.length;
+  count.textContent = visibleKeys.length;
 
   list.innerHTML = sorted.map(name => {
     const item = history[name];
     const src  = item.source ? '../' + item.source : '';
+    const basename = (item.source || '').split('/').pop() || name;
     const isActive = name === activeImage;
     const origIdx  = allKeys.indexOf(name);
     const ts = lastTimestamp(item);
     const tsStr = ts ? new Date(ts).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
     const checked = selectedImages.has(name) ? 'checked' : '';
-    return `<div class="img-item${isActive ? ' active' : ''}" onclick="selectImage(${origIdx})">
+    return `<div class="img-item${isActive ? ' active' : ''}" data-basename="${basename}" onclick="selectImage(${origIdx})">
       <input type="checkbox" class="img-select" data-name="${name}" ${checked}
         onclick="event.stopPropagation()"
         onchange="toggleImageSelect(this.dataset.name, this.checked)">
@@ -531,6 +1125,7 @@ function renderSidebar() {
         <div class="item-name">${name}</div>
         <div class="item-meta">${item.runs.length} iter. · ${tsStr}</div>
       </div>
+      <button class="ctx-btn" title="Actions (clic-droit équivalent)" onclick="event.stopPropagation()">⋯</button>
     </div>`;
   }).join('');
 }
@@ -538,11 +1133,24 @@ function renderSidebar() {
 function selectImage(idx) {
   const keys = Object.keys(history);
   if (idx < 0 || idx >= keys.length) return;
+  const prev = activeImage;
   activeImage = keys[idx];
   compareLeft = null;
   compareRight = null;
+  // Retirer l'overlay de masque de fond (liée à l'ancienne image)
+  if (typeof clearBgOverlay === 'function') clearBgOverlay();
+  // Activer/désactiver les contrôles bg en fonction de la dispo d'une image active
+  const btnBg = document.getElementById('btn-detect-bg');
+  const tolBg = document.getElementById('bg-tolerance');
+  const cbBg  = document.getElementById('preserve-bg-toggle');
+  [btnBg, tolBg, cbBg].forEach(el => { if (el) el.disabled = !activeImage; });
+  const infoBg = document.getElementById('bg-detected-info');
+  if (infoBg) { infoBg.textContent = '—'; infoBg.style.color = 'var(--muted)'; }
   renderSidebar();
   renderContent();
+  if (typeof liveMode !== 'undefined' && liveMode && activeImage !== prev) {
+    firePreview(true);
+  }
 }
 
 // ─── Contenu principal ────────────────────────────────────────────────────────
@@ -571,45 +1179,47 @@ function renderContent() {
     compareRight = mkEntry('run_' + r.index, '../' + r.output, '#' + r.index + ' ' + r.method, r.algo, r.method, r.params, r.timestamp);
   }
 
+  // Colonne centrale : comparateur plein écran uniquement
   content.innerHTML = `
-    <!-- Filtres + Itérations fusionnés -->
     <div class="comp-wrap">
-      <div class="comp-label">Filtres &amp; itérations</div>
-      <div class="toolbar">
+      ${buildSliderHTML()}
+    </div>
+  `;
+
+  // Colonne droite : toolbar + grille d'iters + détail + diagnostic
+  const rightToolbar = document.getElementById('right-toolbar');
+  const rightGrid = document.getElementById('right-grid');
+  if (rightToolbar) {
+    rightToolbar.innerHTML = `
+      <div class="toolbar" style="flex-wrap:wrap">
         <button class="btn btn-sort${sortDesc ? ' active' : ''}" onclick="toggleSort()">${sortDesc ? '↓ récent' : '↑ ancien'}</button>
         <div class="toolbar-sep"></div>
         ${['all','sharpen','scale2x','denoise','pixelsnap'].map(a =>
           `<button class="btn${filterAlgo===a?' active':''}" onclick="setFilter('${a}')">${a==='all'?'Tous':a}</button>`
         ).join('')}
-        <span class="spacer"></span>
-        <span style="font-size:.68rem;color:var(--muted);flex-shrink:0">${runs.length} iter.</span>
-        <button class="btn" onclick="deleteAllIters('${activeImage}')" style="color:#ef6060;border-color:#5a2020" title="Supprimer toutes les itérations">🗑 Tout</button>
       </div>
-
-      <div class="iter-grid" id="iter-grid" style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:.68rem;color:var(--muted)">
+        <span>${runs.length} iter.</span>
+        <button class="btn" onclick="deleteAllIters('${activeImage}')" style="color:#ef6060;border-color:#5a2020;padding:2px 6px" title="Supprimer toutes les itérations">🗑 Tout</button>
+      </div>
+    `;
+  }
+  if (rightGrid) {
+    rightGrid.innerHTML = `
+      <div class="iter-grid" id="iter-grid">
         ${buildSourceCard(item)}
         ${runs.map(r => buildRunCard(r)).join('')}
       </div>
-    </div>
-
-    <!-- Comparateur -->
-    <div class="comp-wrap">
-      <div class="comp-label">Comparateur — glisse le curseur</div>
-      ${buildSliderHTML()}
-    </div>
-
-    <!-- Détail -->
-    <div class="comp-wrap" id="detail-bar-wrap" style="${!compareRight || compareRight.algo==='source' ? 'display:none' : ''}">
-      <div class="comp-label">Détail de la sélection droite</div>
-      <div id="detail-bar"></div>
-    </div>
-
-    <!-- Diagnostic -->
-    <div class="comp-wrap">
-      <div class="comp-label">Diagnostic qualité</div>
-      ${buildDiagHTML(item)}
-    </div>
-  `;
+      <div class="comp-wrap" id="detail-bar-wrap" style="margin-top:10px;${!compareRight || compareRight.algo==='source' ? 'display:none' : ''}">
+        <div class="comp-label">Détail</div>
+        <div id="detail-bar"></div>
+      </div>
+      <div class="comp-wrap" style="margin-top:10px">
+        <div class="comp-label">Diagnostic</div>
+        ${buildDiagHTML(item)}
+      </div>
+    `;
+  }
 
   updateCompare();
 }
@@ -731,37 +1341,53 @@ function setFilter(algo) { filterAlgo = algo; renderContent(); }
 function buildSliderHTML() {
   const ll = compareLeft  ? compareLeft.label  : '—';
   const rl = compareRight ? compareRight.label : '—';
-  return `<div class="compare-card">
-    <div class="compare-header">
-      <label>Gauche :</label>
-      <span class="clabel" style="color:var(--accent)">${ll}</span>
-      <span style="flex:1"></span>
-      <label>Droite :</label>
-      <span class="clabel" style="color:var(--accent2)">${rl}</span>
-      <span class="card-comp-name">slider</span>
-    </div>
-    <div class="compare-body" id="cmp-body">
-      <div class="cmp-zoom-layer" id="cmp-zoom-layer">
-        <img class="img-base" id="cmp-left" src="${compareLeft?.src || ''}" alt="G">
-        <div class="img-overlay" id="cmp-overlay" style="width:50%">
-          <img id="cmp-right" src="${compareRight?.src || ''}" alt="D">
-        </div>
+  const spriteName = activeImage || '—';
+  const timingStyle = liveMode ? '' : 'display:none';
+  return `<div class="compare-card" id="compare-card">
+    <span class="cmp-compute-badge">⟳ Calcul preview…</span>
+    <span class="cmp-error-badge" id="cmp-error-badge"></span>
+    <div class="cmp-toolbar" id="cmp-toolbar">
+      <span class="cmp-tb-sprite">${spriteName}</span>
+      <div class="cmp-tb-labels">
+        <span class="clabel" style="color:var(--accent)">${ll}</span>
+        <span class="cmp-tb-sep">⇔</span>
+        <span class="clabel" style="color:var(--accent2)">${rl}</span>
       </div>
-      <canvas id="pixel-axes-canvas" class="pixel-axes-canvas" style="display:none"></canvas>
-      <div class="compare-divider" id="cmp-div" style="left:50%">
-        <div class="compare-handle">⇔</div>
-      </div>
-    </div>
-    <div class="compare-footer">
-      <span class="flabel" style="color:var(--accent)">${ll}</span>
       <div class="zoom-controls">
         <button class="zbtn" onclick="cmpZoomStep(-1)" title="Dézoomer">−</button>
         <span class="zoom-level" id="cmp-zoom-label">×1</span>
         <button class="zbtn" onclick="cmpZoomStep(+1)" title="Zoomer">+</button>
         <button class="zbtn" onclick="cmpZoomReset()" title="Réinitialiser zoom">↺</button>
         <button class="zbtn" id="pixel-axes-btn" onclick="togglePixelAxes()" title="Afficher les axes pixel">⊹</button>
+        <button class="zbtn" id="btn-grid" onclick="toggleGrid()" title="Afficher la grille pixel (G)">🔳</button>
+        <input type="number" id="grid-step" min="1" max="64" value="1" title="Pas de la grille (1-64 pixels natifs)" oninput="setGridStep(this.value)">
+        <span id="grid-step-label" title="Pas effectif de la grille"></span>
+        <input type="color" id="grid-color" value="#ffffff" title="Couleur de la grille" oninput="setGridStyle()">
+        <input type="range" id="grid-opacity" min="0.05" max="1" step="0.05" value="0.15" title="Opacité de la grille" oninput="setGridStyle()">
+        <select id="grid-blend" title="Blend mode de la grille" onchange="setGridStyle()">
+          <option value="difference">difference</option>
+          <option value="normal">normal</option>
+          <option value="multiply">multiply</option>
+        </select>
+        <span id="grid-warning" title="Grille masquée : pixel écran < 2px, zoome pour voir">⚠</span>
+        <button class="zbtn" id="btn-diff" onclick="toggleDiff()" title="Surligner les pixels divergents (D)">Δ</button>
+        <span id="diff-count"></span>
+        <span class="cmp-tb-timing" id="cmp-tb-timing" style="${timingStyle}"></span>
       </div>
-      <span class="flabel" style="color:var(--accent2)">${rl}</span>
+    </div>
+    <div class="compare-body" id="cmp-body">
+      <div class="cmp-zoom-layer" id="cmp-zoom-layer">
+        <img class="img-base" id="cmp-left" src="${compareLeft?.src || ''}" alt="G">
+        <canvas id="grid-overlay" style="display:none"></canvas>
+        <canvas id="slicing-overlay" style="display:none"></canvas>
+        <canvas id="diff-overlay" style="display:none"></canvas>
+        <div class="img-overlay" id="cmp-overlay" style="width:50%">
+          <img id="cmp-right" src="${compareRight?.src || ''}" alt="D">
+        </div>
+      </div>
+      <canvas id="pixel-axes-canvas" class="pixel-axes-canvas" style="display:none"></canvas>
+      <div class="compare-divider" id="cmp-div" style="left:50%"></div>
+      <div class="compare-handle" id="cmp-handle">⇔</div>
     </div>
   </div>`;
 }
@@ -779,7 +1405,7 @@ function updateCompare() {
   // Détail
   const detailWrap = document.getElementById('detail-bar-wrap');
   const detail = document.getElementById('detail-bar');
-  if (detail && compareRight && compareRight.algo !== 'source') {
+  if (detail && compareRight && compareRight.algo !== 'source' && compareRight.algo !== 'preview') {
     if (detailWrap) detailWrap.style.display = '';
     const p = Object.entries(compareRight.params||{}).map(([k,v])=>`${k}=${v}`).join(', ')||'—';
     detail.innerHTML = `<div class="detail-bar">
@@ -882,7 +1508,7 @@ function applyCmpZoom() {
   if (layer) layer.style.transform = `scale(${cmpZ}) translate(${cmpPx}px, ${cmpPy}px)`;
   if (label) label.textContent = cmpZ === 1 ? '×1' : `×${cmpZ.toFixed(1).replace('.0','')}`;
   const body = document.getElementById('cmp-body');
-  if (body) body.style.cursor = cmpZ > 1 ? 'grab' : 'crosshair';
+  if (body) body.style.cursor = 'grab';
   // Resync le divider : sa position visuelle est fixe, l'overlay doit suivre
   if (_sliderSync) _sliderSync();
   if (showPixelAxes) drawPixelAxes();
@@ -907,8 +1533,13 @@ function initSlider() {
   const body    = document.getElementById('cmp-body');
   const overlay = document.getElementById('cmp-overlay');
   const divEl   = document.getElementById('cmp-div');
+  const handleEl = document.getElementById('cmp-handle');
   const imgR    = document.getElementById('cmp-right');
   if (!body || !overlay || !divEl) return;
+
+  // Empêcher le drag-pan accidentel quand on clique sur la toolbar (tâche 4.5)
+  const toolbarEl = document.getElementById('cmp-toolbar');
+  if (toolbarEl) toolbarEl.addEventListener('mousedown', e => e.stopPropagation());
 
   // Réinitialiser le canvas axes à chaque changement d'image
   const axCv = document.getElementById('pixel-axes-canvas');
@@ -928,8 +1559,9 @@ function initSlider() {
     const bW = body.getBoundingClientRect().width;
     if (!bW) return;
     const cx = bW / 2;
-    // 1. Le divider reste à sa position visuelle body-relative
+    // 1. Le divider et la poignée restent à leur position visuelle body-relative
     divEl.style.left = (divPct * 100) + '%';
+    if (handleEl) handleEl.style.left = (divPct * 100) + '%';
     // 2. Convertit la position visuelle en position naturelle dans le zoom layer.
     //    Formule inverse du transform scale(Z) translate(Px,Py) origin:center :
     //    nat_x = (vx - cx) / Z - cmpPx + cx
@@ -938,7 +1570,24 @@ function initSlider() {
     const pct = Math.max(0.01, Math.min(0.99, nat_x / bW));
     overlay.style.width = (pct * 100) + '%';
     if (imgR) imgR.style.width = (100 / pct) + '%';
+    updateHandleVerticalPos();
   }
+
+  // Positionne verticalement la poignée au centre de la portion VISIBLE du body
+  // (pour qu'elle reste accessible même quand l'image est très grande et qu'on scrolle)
+  function updateHandleVerticalPos() {
+    if (!handleEl) return;
+    const rect = body.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const visibleTop = Math.max(40, -rect.top);
+    const visibleBottom = Math.min(rect.height, vh - rect.top);
+    const middle = (visibleTop + visibleBottom) / 2;
+    handleEl.style.top = (middle - 22) + 'px';
+    handleEl.style.marginLeft = '-22px';
+  }
+
+  window.addEventListener('scroll', updateHandleVerticalPos, { passive: true });
+  window.addEventListener('resize', updateHandleVerticalPos);
 
   // Expose le sync au zoom global
   _sliderSync = applyDivider;
@@ -952,20 +1601,20 @@ function initSlider() {
 
   // ── Divider drag ─────────────────────────────────────────────────────────────
   let divDrag = false;
-  divEl.onmousedown = e => { divDrag = true; e.stopPropagation(); e.preventDefault(); };
+  const onDivDown = e => { divDrag = true; e.stopPropagation(); e.preventDefault(); };
+  divEl.onmousedown = onDivDown;
+  if (handleEl) handleEl.onmousedown = onDivDown;
 
   // ── Pan drag ─────────────────────────────────────────────────────────────────
   let panDrag = false, panSX = 0, panSY = 0, panOX = 0, panOY = 0;
 
   body.onmousedown = e => {
-    if (cmpZ > 1) {
-      panDrag = true;
-      panSX = e.clientX; panSY = e.clientY;
-      panOX = cmpPx;     panOY = cmpPy;
-      body.style.cursor = 'grabbing';
-      const layer = document.getElementById('cmp-zoom-layer');
-      if (layer) layer.style.transition = 'none';
-    }
+    panDrag = true;
+    panSX = e.clientX; panSY = e.clientY;
+    panOX = cmpPx;     panOY = cmpPy;
+    body.style.cursor = 'grabbing';
+    const layer = document.getElementById('cmp-zoom-layer');
+    if (layer) layer.style.transition = 'none';
   };
 
   document.onmousemove = e => {
@@ -980,7 +1629,7 @@ function initSlider() {
 
   document.onmouseup = () => {
     divDrag = false; panDrag = false;
-    body.style.cursor = cmpZ > 1 ? 'grab' : 'crosshair';
+    body.style.cursor = 'grab';
     const layer = document.getElementById('cmp-zoom-layer');
     if (layer) layer.style.transition = 'transform 0.08s ease-out';
   };
@@ -1033,6 +1682,9 @@ function initSlider() {
     const layer = document.getElementById('cmp-zoom-layer');
     if (layer) layer.style.transition = 'transform 0.08s ease-out';
   };
+
+  // Initialise le curseur et le zoom layer au bon état
+  applyCmpZoom();
 }
 
 // ─── Zoom in-card ─────────────────────────────────────────────────────────────
@@ -1170,6 +1822,7 @@ function setApiOnline(online) {
   const preset = document.getElementById('preset-select');
   const addBtn = document.getElementById('cp-add-btn');
   const launch = document.getElementById('cp-launch-btn');
+  const liveTg = document.getElementById('live-toggle');
 
   if (online) {
     dot.textContent = '● En ligne'; dot.style.color = 'var(--green)';
@@ -1177,15 +1830,310 @@ function setApiOnline(online) {
     preset.disabled = false;
     addBtn.disabled = false;
     launch.disabled = false;
+    if (liveTg) liveTg.disabled = false;
   } else {
     dot.textContent = '● Hors-ligne'; dot.style.color = '#ef6060';
     msg.style.display = '';
     preset.disabled = true;
     addBtn.disabled = true;
     launch.disabled = true;
+    if (liveTg) { liveTg.disabled = true; liveTg.checked = false; }
+    setLiveMode(false);
     document.getElementById('step-list').innerHTML = '';
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIVE PREVIEW — mode volatile, pas de persistance
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let liveMode      = false;
+let fullResMode   = false;
+let previewCtrl   = null;      // AbortController partagé
+let previewTimer  = null;      // id de debounce
+let statusIdleTo  = null;      // timer retour en idle
+const PREVIEW_DEBOUNCE_MS = 200;
+
+function setLiveMode(on) {
+  liveMode = !!on;
+  const panel = document.getElementById('convert-panel');
+  panel.dataset.live = liveMode ? 'on' : 'off';
+  document.body.classList.toggle('live-on', liveMode);
+  refreshSizeSensitiveWarning();
+  if (liveMode) {
+    firePreview(true);  // immédiat, sans debounce
+  } else {
+    cancelPreviewInFlight();
+    const timingEl = document.getElementById('cmp-tb-timing');
+    if (timingEl) { timingEl.style.display = 'none'; timingEl.textContent = ''; }
+    // Si compareRight est un preview volatile, le remettre à la dernière iter
+    if (compareRight && compareRight.id === '__live__') {
+      compareRight = null;
+      if (activeImage) renderContent();
+    }
+    setPreviewStatus('idle');
+  }
+}
+
+function setFullResMode(on) {
+  fullResMode = !!on;
+  if (liveMode) firePreview(true);
+}
+
+// ─── BG DETECTION ─────────────────────────────────────────────────────────────
+let preserveBg = false;
+let bgOverlayVisible = false;
+
+function setPreserveBg(on) {
+  preserveBg = !!on;
+  if (liveMode) schedulePreview();
+}
+
+async function toggleBgOverlay() {
+  const existing = document.querySelector('.bg-mask-overlay');
+  if (existing) {
+    existing.remove();
+    bgOverlayVisible = false;
+    document.getElementById('btn-detect-bg')?.classList.remove('active');
+    return;
+  }
+  if (!activeImage) return;
+  const tolEl = document.getElementById('bg-tolerance');
+  const tol = tolEl ? Math.max(0, Math.min(50, parseInt(tolEl.value || '8', 10))) : 8;
+  const info = document.getElementById('bg-detected-info');
+  info.textContent = '…';
+  info.style.color = 'var(--muted)';
+  try {
+    const url = '/api/bgmask?image=' + encodeURIComponent(activeImage) + '&tolerance=' + tol;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      let msg = 'Erreur ' + resp.status;
+      try { const d = await resp.json(); if (d.errors) msg = d.errors.join(' · '); } catch (_) {}
+      info.textContent = msg;
+      info.style.color = '#ef6060';
+      return;
+    }
+    const color = resp.headers.get('X-Bgmask-Color') || 'none';
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    // Attacher l'overlay sur le cmp-zoom-layer (au-dessus de cmp-left, sous le divider)
+    const layer = document.getElementById('cmp-zoom-layer');
+    if (!layer) { info.textContent = 'Comparateur introuvable'; info.style.color = '#ef6060'; return; }
+    const img = document.createElement('img');
+    img.className = 'bg-mask-overlay';
+    img.src = objUrl;
+    img.style.width = '100%';
+    img.style.height = 'auto';
+    layer.appendChild(img);
+    bgOverlayVisible = true;
+    document.getElementById('btn-detect-bg')?.classList.add('active');
+    info.textContent = color === 'none' ? 'Fond non détecté' : 'Fond : ' + color;
+    info.style.color = color === 'none' ? '#f0c040' : 'var(--green)';
+  } catch (e) {
+    info.textContent = 'Erreur réseau';
+    info.style.color = '#ef6060';
+  }
+}
+
+function clearBgOverlay() {
+  document.querySelector('.bg-mask-overlay')?.remove();
+  bgOverlayVisible = false;
+  document.getElementById('btn-detect-bg')?.classList.remove('active');
+}
+
+function setPreviewStatus(state, message) {
+  const dot = document.getElementById('preview-status');
+  if (dot) {
+    dot.classList.remove('idle', 'inflight', 'ready', 'error');
+    dot.classList.add(state);
+    dot.title = 'Preview : ' + state + (message ? ' — ' + message : '');
+  }
+  // Indicateurs visibles sur le comparateur
+  const card = document.getElementById('compare-card');
+  if (card) {
+    card.classList.toggle('computing', state === 'inflight');
+    card.classList.toggle('error',     state === 'error');
+    const errBadge = document.getElementById('cmp-error-badge');
+    if (errBadge) errBadge.textContent = state === 'error' ? ('Erreur : ' + (message || 'inconnue')) : '';
+    errBadge && (errBadge.title = message || '');
+  }
+  if (statusIdleTo) { clearTimeout(statusIdleTo); statusIdleTo = null; }
+  if (state === 'ready') {
+    statusIdleTo = setTimeout(() => setPreviewStatus('idle'), 500);
+  }
+}
+
+function cancelPreviewInFlight() {
+  if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+  if (previewCtrl)  { previewCtrl.abort(); previewCtrl = null; }
+}
+
+function schedulePreview() {
+  if (!liveMode) return;
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { previewTimer = null; firePreview(false); }, PREVIEW_DEBOUNCE_MS);
+}
+
+async function firePreview(immediate) {
+  if (!liveMode || !apiOnline) return;
+  if (!activeImage) { setPreviewStatus('idle', 'sélectionne une image'); return; }
+  const pipeline = collectPipeline();
+  if (!pipeline.length) {
+    setPreviewStatus('idle', 'pipeline vide');
+    // Si on avait un preview live, on le retire pour ne pas laisser un rendu obsolète
+    if (compareRight && compareRight.id === '__live__') {
+      compareRight = null;
+      if (activeImage) updateCompare();
+    }
+    return;
+  }
+
+  // Annule une éventuelle requête en vol
+  if (previewCtrl) previewCtrl.abort();
+  previewCtrl = new AbortController();
+  const ctrl = previewCtrl;
+  const srcName = activeImage;
+
+  setPreviewStatus('inflight');
+
+  const payload = {
+    image:     srcName,
+    pipeline,
+    downscale: fullResMode ? null : 256,
+  };
+
+  try {
+    const res = await fetch(API + '/api/preview', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+      signal:  ctrl.signal,
+    });
+    const data = await res.json();
+    if (ctrl !== previewCtrl) return; // une autre a pris la main entre-temps
+    if (!res.ok) {
+      const msg = (data.errors && data.errors.join(' · ')) || data.error || ('HTTP ' + res.status);
+      setPreviewStatus('error', msg);
+      return;
+    }
+    renderPreview(data, srcName, pipeline);
+  } catch (e) {
+    if (e.name === 'AbortError') return;  // silencieux
+    setPreviewStatus('error', e.message || 'erreur réseau');
+  }
+}
+
+function renderPreview(data, srcName, pipeline) {
+  const dataUrl = 'data:image/png;base64,' + data.png_base64;
+  const hitInfo = data.cache_hit_depth ? ' · cache=' + data.cache_hit_depth : '';
+  const label   = 'Live · ' + data.width + '×' + data.height + ' · ' + data.elapsed_ms + ' ms' + hitInfo;
+  const pipeSummary = pipeline.map(s => s.algo + '/' + s.method).join(' → ');
+
+  const wasLive = compareRight && compareRight.id === '__live__';
+  compareRight = {
+    id:        '__live__',
+    src:       dataUrl,
+    label:     label,
+    algo:      'preview',
+    method:    pipeSummary,
+    params:    {},
+    timestamp: '',
+  };
+  const timingText = data.elapsed_ms + 'ms' + hitInfo;
+  // Transition vers le mode live : rebuild complet (crée l'<img id="cmp-right">).
+  // Rafale de previews en mode live : patch in-place pour préserver zoom + divider.
+  if (!wasLive || !document.getElementById('cmp-right')) {
+    if (activeImage) updateCompare();
+    const timingEl = document.getElementById('cmp-tb-timing');
+    if (timingEl) { timingEl.textContent = timingText; timingEl.style.display = ''; }
+  } else {
+    patchLiveCompareRight(dataUrl, label, timingText);
+  }
+  setPreviewStatus('ready');
+}
+
+function patchLiveCompareRight(dataUrl, label, timingText) {
+  const img = document.getElementById('cmp-right');
+  if (img) img.src = dataUrl;
+  // Mettre à jour le label droite dans la toolbar
+  const toolbar = document.getElementById('cmp-toolbar');
+  if (toolbar) {
+    const clabels = toolbar.querySelectorAll('.clabel');
+    if (clabels.length >= 2) clabels[1].textContent = label;
+  }
+  // Mettre à jour le timing
+  const timingEl = document.getElementById('cmp-tb-timing');
+  if (timingEl && timingText) { timingEl.textContent = timingText; timingEl.style.display = ''; }
+}
+
+function refreshSizeSensitiveWarning() {
+  const row = document.getElementById('live-row');
+  if (!row) return;
+  const pipeline = collectPipeline();
+  const sensitive = pipeline.some(s =>
+    s.algo === 'scale2x' || (s.algo === 'pixelsnap' && s.method === 'block')
+  );
+  row.classList.toggle('has-size-sensitive', sensitive && !fullResMode);
+}
+
+// ─── Rétractation des panneaux (layout Upscayl-like) ─────────────────────────
+function toggleLeftPanel() {
+  const cur = getComputedStyle(document.documentElement).getPropertyValue('--left-w').trim();
+  const open = cur !== '0px';
+  document.documentElement.style.setProperty('--left-w', open ? '0px' : '280px');
+  localStorage.setItem('dashLeftOpen', open ? 'false' : 'true');
+}
+function toggleRightPanel() {
+  const shell = document.getElementById('app-shell');
+  const isOpen = shell.getAttribute('data-right-open') === 'true';
+  shell.setAttribute('data-right-open', isOpen ? 'false' : 'true');
+  document.documentElement.style.setProperty('--right-w', isOpen ? '0px' : '320px');
+  localStorage.setItem('dashRightOpen', isOpen ? 'false' : 'true');
+}
+// Restaurer l'état dès le parse HTML (avant render) pour éviter le flash
+(function restorePanelState() {
+  const leftOpen  = localStorage.getItem('dashLeftOpen') !== 'false';
+  const rightOpen = localStorage.getItem('dashRightOpen') === 'true';
+  document.documentElement.style.setProperty('--left-w',  leftOpen  ? '280px' : '0px');
+  document.documentElement.style.setProperty('--right-w', rightOpen ? '320px' : '0px');
+  document.addEventListener('DOMContentLoaded', () => {
+    const shell = document.getElementById('app-shell');
+    if (shell) shell.setAttribute('data-right-open', rightOpen ? 'true' : 'false');
+  });
+})();
+// Raccourci clavier H pour toggle historique
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'h' || e.key === 'H') && !e.target.matches('input, select, textarea')) {
+    toggleRightPanel();
+  }
+});
+
+// Event delegation sur le builder : tout input/change déclenche un preview debouncé
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('convert-panel');
+  if (!panel) return;
+  const onEdit = (ev) => {
+    const t = ev.target;
+    if (!t) return;
+    if (t.id === 'live-toggle' || t.id === 'fullres-toggle') return;
+    if (t.closest('#step-list')) {
+      refreshSizeSensitiveWarning();
+      schedulePreview();
+    }
+  };
+  panel.addEventListener('input',  onEdit);
+  panel.addEventListener('change', onEdit);
+
+  // MutationObserver : addStep / removeStep / moveStep / loadPreset ne déclenchent
+  // pas d'event input, on capte la structure du step-list directement
+  const stepList = document.getElementById('step-list');
+  if (stepList) {
+    new MutationObserver(() => {
+      refreshSizeSensitiveWarning();
+      schedulePreview();
+    }).observe(stepList, { childList: true, subtree: false });
+  }
+});
 
 // ─── 3.1 Gestion sélection images ────────────────────────────────────────────
 let selectedImages = new Set();
@@ -1214,6 +2162,114 @@ function updateSelCount() {
   document.getElementById('sel-count').textContent = selectedImages.size + ' sélectionnée(s)';
 }
 
+// ─── 3.3b Descriptions des algos / méthodes / paramètres ────────────────────
+const ALGO_DOCS = {
+  sharpen: {
+    _desc: "Renforce les contours et la netteté de l'image.",
+    methods: {
+      unsharp_mask: {
+        _desc: "Netteté par masque flou : soustrait une version floutée à l'original pour accentuer les bords. Méthode douce et contrôlable, recommandée pour la plupart des cas.",
+        params: {
+          radius:    "Rayon du flou de base (px). Plus il est grand, plus les contours larges sont accentués.",
+          percent:   "Intensité de la netteté (%). 100 = accentuation modérée, 200–300 = fort, >400 = artefacts.",
+          threshold: "Différence minimale (0–255) entre deux pixels pour que la netteté s'applique. 0 = partout, valeurs hautes = seulement les contours marqués.",
+        },
+      },
+      laplacian: {
+        _desc: "Détecte les bords via le filtre Laplacien (dérivée seconde). Plus agressif que unsharp_mask, peut créer du halo.",
+        params: {
+          strength: "Facteur multiplicatif du filtre Laplacien. 1.0 = normal, >2 = fort avec risque de bruit.",
+        },
+      },
+      kernel: {
+        _desc: "Applique un noyau de convolution 3×3 personnalisé qui accentue le pixel central.",
+        params: {
+          amount: "Poids du pixel central dans le noyau. 1.0 = aucun effet, 2–3 = netteté nette, >4 = très accentué.",
+        },
+      },
+    },
+  },
+  denoise: {
+    _desc: "Réduit le bruit et les artefacts de l'image tout en préservant les détails.",
+    methods: {
+      median: {
+        _desc: "Remplace chaque pixel par la médiane de ses voisins. Efficace contre le bruit sel-et-poivre, préserve bien les bords nets.",
+        params: {
+          size: "Taille du voisinage (px, impair). 3 = 3×3 px. Plus grand = lissage plus fort mais plus lent.",
+        },
+      },
+      bilateral: {
+        _desc: "Filtre bilatéral : lisse les zones uniformes en préservant les bords. Plus lent mais qualité supérieure au médian.",
+        params: {
+          d:           "Diamètre du voisinage en pixels. Valeurs élevées = zones plus larges analysées, plus lent.",
+          sigma_color: "Tolérance de similarité de couleur (0–200). Plus grand = fusionne des couleurs plus différentes.",
+          sigma_space: "Tolérance de proximité spatiale (0–200). Plus grand = pixels plus éloignés influencent le résultat.",
+        },
+      },
+      nlm: {
+        _desc: "Non-Local Means : compare des patchs similaires dans toute l'image. Meilleure qualité mais beaucoup plus lent.",
+        params: {
+          h:             "Paramètre de filtrage (1–50). Plus grand = lissage plus fort, moins de bruit mais perte de détail.",
+          template_size: "Taille du patch de comparaison (px impair, 3–21). Patch plus grand = comparaison plus robuste.",
+          search_size:   "Fenêtre de recherche de patchs similaires (px impair, 7–63). Plus grand = meilleure qualité mais beaucoup plus lent.",
+        },
+      },
+    },
+  },
+  pixelsnap: {
+    _desc: "Aligne les pixels sur une grille régulière pour nettoyer les sprites interpolés ou upscalés.",
+    methods: {
+      median: {
+        _desc: "Snap par médiane : dans chaque bloc de pixels, remplace tous les pixels par la couleur médiane du bloc. Robuste au bruit.",
+        params: {
+          block: "Taille du bloc en pixels (0 = auto-détection par FFT). 2 = blocs 2×2, 4 = blocs 4×4, etc.",
+        },
+      },
+      mean: {
+        _desc: "Snap par moyenne : dans chaque bloc, remplace tous les pixels par la couleur moyenne. Produit des couleurs lissées.",
+        params: {
+          block: "Taille du bloc en pixels (0 = auto-détection). Valeurs plus grandes si le sprite est très upscalé.",
+        },
+      },
+      mode: {
+        _desc: "Snap par mode (couleur la plus fréquente dans le bloc). Meilleur rendu pour les sprites avec palettes limitées.",
+        params: {
+          block: "Taille du bloc en pixels (0 = auto-détection). Le mode est insensible aux pixels outliers.",
+        },
+      },
+    },
+  },
+  scale2x: {
+    _desc: "Agrandit l'image par facteur entier en préservant l'aspect pixel-art.",
+    methods: {
+      nearest: {
+        _desc: "Agrandissement au plus proche voisin. Chaque pixel devient un bloc uni de NxN pixels. Résultat 100% fidèle à l'original.",
+        params: {
+          scale: "Facteur d'agrandissement (1–8). 2 = double la taille, 4 = quadruple.",
+        },
+      },
+      scale2x: {
+        _desc: "Algorithme Scale2x (EPX) : x2 avec lissage intelligent des diagonales. Réduit l'effet escalier sur les bords courbes.",
+        params: {},
+      },
+      eagle2x: {
+        _desc: "Algorithme Eagle2x : x2 avec lissage orienté sur les diagonales. Produit des contours plus doux que nearest mais moins fidèle que Scale2x.",
+        params: {},
+      },
+    },
+  },
+};
+
+function _algoTitle(algo) {
+  return ALGO_DOCS[algo]?._desc || '';
+}
+function _methodTitle(algo, method) {
+  return ALGO_DOCS[algo]?.methods?.[method]?._desc || '';
+}
+function _paramTitle(algo, method, param) {
+  return ALGO_DOCS[algo]?.methods?.[method]?.params?.[param] || '';
+}
+
 // ─── 3.4 Composant "étape" ───────────────────────────────────────────────────
 let stepSeq = 0;
 
@@ -1237,36 +2293,51 @@ function buildStepHTML(id, selAlgo, selMethod, presetParams = {}) {
 
   const methods = algoCatalog[selAlgo]?.methods || {};
   const methodOpts = Object.keys(methods).map(m =>
-    `<option value="${m}"${m === selMethod ? ' selected' : ''}>${m}</option>`
+    `<option value="${m}"${m === selMethod ? ' selected' : ''} title="${_methodTitle(selAlgo, m)}">${m}</option>`
   ).join('');
 
   const paramsHTML = buildParamsHTML(selAlgo, selMethod, presetParams);
 
   return `
     <div class="step-row-top">
-      <select onchange="onAlgoChange(this,${id})">${algoOpts}</select>
-      <select id="method-sel-${id}" onchange="onMethodChange(this,${id})">${methodOpts}</select>
+      <input type="checkbox" class="step-enable" checked title="Désactiver cette étape (sans la supprimer)"
+             onchange="toggleStep(${id}, this.checked)">
+      <select title="${_algoTitle(selAlgo)}" onchange="onAlgoChange(this,${id})">${algoOpts}</select>
+      <select id="method-sel-${id}" title="${_methodTitle(selAlgo, selMethod)}" onchange="onMethodChange(this,${id})">${methodOpts}</select>
       <div class="step-ctrl">
         <button class="step-btn" onclick="moveStep(${id},-1)" title="Monter">↑</button>
         <button class="step-btn" onclick="moveStep(${id},+1)" title="Descendre">↓</button>
-        <button class="step-btn" onclick="removeStep(${id})" title="Supprimer">×</button>
+        <button class="step-btn step-remove" onclick="removeStep(${id})" title="Supprimer">×</button>
       </div>
     </div>
     <div class="step-params" id="step-params-${id}">${paramsHTML}</div>`;
 }
 
+function toggleStep(id, enabled) {
+  const row = document.querySelector(`.step-row[data-step-id="${id}"]`);
+  if (!row) return;
+  row.classList.toggle('disabled', !enabled);
+  // Le MutationObserver ne capte pas ce changement de classe ; on déclenche manuellement
+  if (typeof refreshSizeSensitiveWarning === 'function') refreshSizeSensitiveWarning();
+  if (typeof schedulePreview === 'function') schedulePreview();
+}
+
 // ─── 3.5 Génération des inputs params ────────────────────────────────────────
 function buildParamsHTML(algo, method, presetParams = {}) {
   const params = algoCatalog?.[algo]?.methods?.[method]?.params || [];
-  return params.map(p => {
-    const val = presetParams[p.name] !== undefined ? presetParams[p.name] : p.default;
-    const step = p.type === 'float' ? '0.1' : '1';
-    return `<div class="param-field">
-      <label>${p.name}</label>
-      <input type="number" min="${p.min}" max="${p.max}" step="${step}"
-             value="${val}" data-param="${p.name}">
-    </div>`;
-  }).join('');
+  return params
+    // Les params bool (ex: preserve_bg) sont pilotés par un toggle global, pas par un champ numérique.
+    .filter(p => p.type !== 'bool')
+    .map(p => {
+      const val = presetParams[p.name] !== undefined ? presetParams[p.name] : p.default;
+      const step = p.type === 'float' ? '0.1' : '1';
+      const tip = _paramTitle(algo, method, p.name);
+      return `<div class="param-field" title="${tip}">
+        <label title="${tip}">${p.name}</label>
+        <input type="number" min="${p.min}" max="${p.max}" step="${step}"
+               value="${val}" data-param="${p.name}" title="${tip}">
+      </div>`;
+    }).join('');
 }
 
 // ─── 3.6 Reset des inputs au changement de méthode ───────────────────────────
@@ -1275,15 +2346,20 @@ function onAlgoChange(sel, id) {
   const methods = algoCatalog[algo]?.methods || {};
   const methodSel = document.getElementById('method-sel-' + id);
   methodSel.innerHTML = Object.keys(methods).map(m =>
-    `<option value="${m}">${m}</option>`
+    `<option value="${m}" title="${_methodTitle(algo, m)}">${m}</option>`
   ).join('');
-  refreshStepParams(id, algo, Object.keys(methods)[0]);
+  sel.title = _algoTitle(algo);
+  const firstMethod = Object.keys(methods)[0];
+  methodSel.title = _methodTitle(algo, firstMethod);
+  refreshStepParams(id, algo, firstMethod);
 }
 
 function onMethodChange(sel, id) {
   const row = document.querySelector(`.step-row[data-step-id="${id}"]`);
   const algoSel = row.querySelector('select');
-  refreshStepParams(id, algoSel.value, sel.value);
+  const algo = algoSel.value;
+  sel.title = _methodTitle(algo, sel.value);
+  refreshStepParams(id, algo, sel.value);
 }
 
 function refreshStepParams(id, algo, method) {
@@ -1307,11 +2383,11 @@ function removeStep(id) {
 
 // ─── 3.7 Presets ─────────────────────────────────────────────────────────────
 const PRESETS = {
-  // Sprite upscalé avec interpolation (pixels flous) → snap + dépixellisation douce + sharpen
+  // Sprite upscalé avec interpolation (pixels flous) → denoise + snap + sharpen (spec pixel-art-dashboard)
   nettoyage: [
-    { algo: 'pixelsnap', method: 'median',       params: { block: 0 } },
     { algo: 'denoise',   method: 'median',       params: { size: 3 } },
-    { algo: 'sharpen',   method: 'unsharp_mask', params: { radius: 1.0, percent: 120, threshold: 2 } },
+    { algo: 'pixelsnap', method: 'median',       params: { block: 4 } },
+    { algo: 'sharpen',   method: 'unsharp_mask', params: { radius: 1.2, percent: 200, threshold: 2 } },
   ],
   // Image native propre → affûtage léger avant upscale Scale2x
   upscale: [
@@ -1372,16 +2448,22 @@ async function launchConvert() {
 }
 
 function collectPipeline() {
-  return [...document.querySelectorAll('.step-row')].map(row => {
-    const selects = row.querySelectorAll('select');
-    const algo   = selects[0].value;
-    const method = selects[1].value;
-    const params = {};
-    row.querySelectorAll('input[data-param]').forEach(inp => {
-      params[inp.dataset.param] = parseFloat(inp.value);
+  return [...document.querySelectorAll('.step-row')]
+    .filter(row => !row.classList.contains('disabled'))
+    .map(row => {
+      const selects = row.querySelectorAll('select');
+      const algo   = selects[0].value;
+      const method = selects[1].value;
+      const params = {};
+      row.querySelectorAll('input[data-param]').forEach(inp => {
+        params[inp.dataset.param] = parseFloat(inp.value);
+      });
+      // Injection de preserve_bg pour les algos qui le supportent (denoise, sharpen)
+      if (typeof preserveBg !== 'undefined' && preserveBg && (algo === 'denoise' || algo === 'sharpen')) {
+        params.preserve_bg = true;
+      }
+      return { algo, method, params };
     });
-    return { algo, method, params };
-  });
 }
 
 // ─── 3.9 Rendu live SSE ──────────────────────────────────────────────────────
@@ -1504,6 +2586,1374 @@ async function deleteAllIters(stem) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadHistory();
 loadAlgosCatalog();
+// initExtensions() est appelé par le script d'extensions plus bas (timing : après l'IIFE)
 </script>
+
+<!-- ── Overlays globaux : HUD, cheat-sheet, modal, toasts ── -->
+<div id="pixel-hud"><span id="pixel-hud-coords"></span><span class="swatch" id="pixel-hud-swatch"></span><span id="pixel-hud-rgb"></span></div>
+
+<div id="kbd-help">
+  <h3>Raccourcis clavier</h3>
+  <dl>
+    <dt>H</dt><dd>Panneau historique</dd>
+    <dt>G</dt><dd>Grille pixel</dd>
+    <dt>D</dt><dd>Overlay diff</dd>
+    <dt>←&nbsp;→</dt><dd>Iter précédent / suivant</dd>
+    <dt>Home&nbsp;End</dt><dd>Premier / dernier iter</dd>
+    <dt>Esc</dt><dd>Reset iter + ferme aide</dd>
+    <dt>Shift</dt><dd>Fige le HUD coordonnées</dd>
+    <dt>?&nbsp;/ F1</dt><dd>Afficher cette aide</dd>
+  </dl>
+</div>
+
+<div id="toast-stack"></div>
+
+<div id="confirm-modal">
+  <div class="modal-card">
+    <h3 id="confirm-title">Confirmer</h3>
+    <p id="confirm-message">…</p>
+    <div class="modal-actions">
+      <button id="confirm-cancel" type="button">Annuler</button>
+      <button id="confirm-ok" type="button" class="primary">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Extensions JS (changes OpenSpec : bg-invert, grid, ux-polish, input-mgmt) ── -->
+<script>
+(function(){
+  'use strict';
+
+  // ============================ TOASTS =======================================
+  function showToast(message, variant = 'info') {
+    const stack = document.getElementById('toast-stack');
+    if (!stack) return;
+    const div = document.createElement('div');
+    div.className = 'toast ' + (variant === 'success' ? 'success' : variant === 'error' ? 'error' : '');
+    div.textContent = message;
+    stack.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('show'));
+    setTimeout(() => {
+      div.classList.remove('show');
+      setTimeout(() => div.remove(), 260);
+    }, 4000);
+  }
+  window.showToast = showToast;
+
+  // ============================ MODAL ========================================
+  function showConfirmModal({ title, message, confirmLabel = 'Confirmer', cancelLabel = 'Annuler' }) {
+    return new Promise(resolve => {
+      const modal = document.getElementById('confirm-modal');
+      const titleEl = document.getElementById('confirm-title');
+      const msgEl = document.getElementById('confirm-message');
+      const okBtn = document.getElementById('confirm-ok');
+      const cancelBtn = document.getElementById('confirm-cancel');
+      titleEl.textContent = title || 'Confirmer';
+      msgEl.innerHTML = (message || '').replace(/\n/g, '<br>');
+      okBtn.textContent = confirmLabel;
+      cancelBtn.textContent = cancelLabel;
+      const cleanup = (result) => {
+        modal.classList.remove('visible');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+        document.removeEventListener('keydown', kh, true);
+        resolve(result);
+      };
+      const kh = (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); cleanup(false); }
+        else if (e.key === 'Enter') { e.stopPropagation(); cleanup(true); }
+      };
+      okBtn.onclick = () => cleanup(true);
+      cancelBtn.onclick = () => cleanup(false);
+      document.addEventListener('keydown', kh, true);
+      modal.classList.add('visible');
+    });
+  }
+  window.showConfirmModal = showConfirmModal;
+
+  // ============================ BG-MASK INVERT ===============================
+  function readLS(key, def = null) {
+    try { return localStorage.getItem(key); } catch (_) { return def; }
+  }
+  function writeLS(key, val) {
+    try { localStorage.setItem(key, val); } catch (_) {}
+  }
+
+  function refreshBgInvertToggle() {
+    const cb = document.getElementById('bg-invert-toggle');
+    if (!cb) return;
+    const hasOverlay = !!document.querySelector('.bg-mask-overlay');
+    const state = (typeof window.__appState === 'function') ? window.__appState() : {};
+    const hasActive = !!state.activeImage;
+    cb.disabled = !(hasActive && hasOverlay);
+    if (cb.disabled) {
+      cb.title = hasActive ? 'Affiche d’abord le masque via Détecter fond' : 'Sélectionne une image d’abord';
+    } else {
+      cb.title = 'Inverse visuellement le masque (affichage client uniquement)';
+    }
+    // Restore value from localStorage
+    const persisted = readLS('dashBgInvert') === 'true';
+    cb.checked = persisted;
+    applyBgInvertToOverlay(persisted);
+  }
+
+  function applyBgInvertToOverlay(on) {
+    const img = document.querySelector('.bg-mask-overlay');
+    if (!img) return;
+    if (on) img.classList.add('inverted');
+    else img.classList.remove('inverted');
+  }
+
+  window.setBgInvert = function (on) {
+    writeLS('dashBgInvert', on ? 'true' : 'false');
+    applyBgInvertToOverlay(!!on);
+  };
+  window.refreshBgInvertToggle = refreshBgInvertToggle;
+
+  // Hook sur toggleBgOverlay existante pour refresh après add/remove overlay
+  const origToggleBgOverlay = window.toggleBgOverlay;
+  if (typeof origToggleBgOverlay === 'function') {
+    window.toggleBgOverlay = async function () {
+      const r = await origToggleBgOverlay.apply(this, arguments);
+      refreshBgInvertToggle();
+      return r;
+    };
+  }
+  const origClearBgOverlay = window.clearBgOverlay;
+  if (typeof origClearBgOverlay === 'function') {
+    window.clearBgOverlay = function () {
+      const r = origClearBgOverlay.apply(this, arguments);
+      refreshBgInvertToggle();
+      return r;
+    };
+  }
+  // Hook selectImage pour rafraîchir toggle quand on change d'image
+  const origSelectImage = window.selectImage;
+  if (typeof origSelectImage === 'function') {
+    window.selectImage = function () {
+      const r = origSelectImage.apply(this, arguments);
+      refreshBgInvertToggle();
+      return r;
+    };
+  }
+
+  // ============================ PIXEL GRID ===================================
+  let gridOn = readLS('dashGridOn') === 'true';
+  let gridStep = Math.max(1, Math.min(64, parseInt(readLS('dashGridStep') || '1', 10) || 1));
+  let gridColor = readLS('dashGridColor') || '#ffffff';
+  let gridOpacity = Math.max(0.05, Math.min(1, parseFloat(readLS('dashGridOpacity') || '0.15') || 0.15));
+  let gridBlend = readLS('dashGridBlend') || 'difference';
+
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '#ffffff');
+    return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [255,255,255];
+  }
+
+  window.setGridStyle = function () {
+    const c = document.getElementById('grid-color')?.value || gridColor;
+    const o = parseFloat(document.getElementById('grid-opacity')?.value || gridOpacity);
+    const b = document.getElementById('grid-blend')?.value || gridBlend;
+    gridColor = c;
+    gridOpacity = Math.max(0.05, Math.min(1, o || 0.15));
+    gridBlend = b || 'difference';
+    writeLS('dashGridColor', gridColor);
+    writeLS('dashGridOpacity', String(gridOpacity));
+    writeLS('dashGridBlend', gridBlend);
+    const canvas = document.getElementById('grid-overlay');
+    if (canvas) canvas.style.mixBlendMode = gridBlend;
+    drawPixelGrid();
+  };
+
+  function updateGridStepLabel(stepUser, stepEff, visible) {
+    const label = document.getElementById('grid-step-label');
+    if (!label) return;
+    if (!visible) {
+      label.classList.remove('visible', 'adapted');
+      return;
+    }
+    label.classList.add('visible');
+    if (stepEff === stepUser) {
+      label.textContent = 'step ' + stepUser;
+      label.classList.remove('adapted');
+      label.title = 'Pas effectif de la grille';
+    } else {
+      label.textContent = 'step ' + stepUser + '→' + stepEff;
+      label.classList.add('adapted');
+      label.title = 'Grille auto-adaptée : zoome pour descendre au step demandé';
+    }
+  }
+
+  function drawPixelGrid() {
+    const canvas = document.getElementById('grid-overlay');
+    const img = document.getElementById('cmp-left');
+    const warning = document.getElementById('grid-warning');
+    if (!canvas || !img) return;
+    if (!gridOn || !img.naturalWidth) {
+      canvas.style.display = 'none';
+      if (warning) warning.classList.remove('visible');
+      updateGridStepLabel(gridStep, gridStep, false);
+      return;
+    }
+    const w = img.offsetWidth, h = img.offsetHeight;
+    if (w <= 0 || h <= 0) {
+      canvas.style.display = 'none';
+      updateGridStepLabel(gridStep, gridStep, false);
+      return;
+    }
+    // Canvas est DANS cmp-zoom-layer : le transform CSS s'applique automatiquement au canvas.
+    // On dessine donc dans les dimensions offsetWidth/offsetHeight (pré-transform) ;
+    // la scale effective pour la lisibilité utilise la taille post-transform.
+    const rect = img.getBoundingClientRect();
+    const renderedW = rect.width || w;
+    const scale = renderedW / img.naturalWidth;
+    // Auto-adaptation : on cherche le plus petit stepEff = stepUser * 2^n tel que stepEff*scale >= 2, borné à 64.
+    let stepEff = gridStep;
+    while (stepEff * scale < 2 && stepEff < 64) {
+      stepEff *= 2;
+    }
+    if (stepEff > 64) stepEff = 64;
+    const pixelScreen = stepEff * scale;
+    if (pixelScreen < 2) {
+      canvas.style.display = 'none';
+      if (warning) warning.classList.add('visible');
+      updateGridStepLabel(gridStep, stepEff, true);
+      return;
+    }
+    if (warning) warning.classList.remove('visible');
+    updateGridStepLabel(gridStep, stepEff, true);
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    canvas.style.mixBlendMode = gridBlend;
+    const [cR, cG, cB] = hexToRgb(gridColor);
+    const opNormal = gridOpacity;
+    const opMajor = Math.min(1, gridOpacity * 2);
+    // Normal lines
+    ctx.strokeStyle = `rgba(${cR},${cG},${cB},${opNormal})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0, x = 0; x < w; i++, x = i * pixelScreen) {
+      if (i % 8 === 0) continue;
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, h);
+    }
+    for (let i = 0, y = 0; y < h; i++, y = i * pixelScreen) {
+      if (i % 8 === 0) continue;
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(w, y + 0.5);
+    }
+    ctx.stroke();
+    // Major lines (every 8)
+    ctx.strokeStyle = `rgba(${cR},${cG},${cB},${opMajor})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0, x = 0; x < w; i++, x = i * pixelScreen) {
+      if (i % 8 !== 0) continue;
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, h);
+    }
+    for (let i = 0, y = 0; y < h; i++, y = i * pixelScreen) {
+      if (i % 8 !== 0) continue;
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(w, y + 0.5);
+    }
+    ctx.stroke();
+  }
+
+  function refreshGridBtn() {
+    const btn = document.getElementById('btn-grid');
+    const step = document.getElementById('grid-step');
+    if (!btn || !step) return;
+    const ids = ['grid-step', 'grid-color', 'grid-opacity', 'grid-blend'];
+    if (gridOn) {
+      btn.classList.add('active');
+      ids.forEach(id => document.getElementById(id)?.classList.add('visible'));
+    } else {
+      btn.classList.remove('active');
+      ids.forEach(id => document.getElementById(id)?.classList.remove('visible'));
+    }
+    step.value = String(gridStep);
+    const cIn = document.getElementById('grid-color'); if (cIn) cIn.value = gridColor;
+    const oIn = document.getElementById('grid-opacity'); if (oIn) oIn.value = String(gridOpacity);
+    const bIn = document.getElementById('grid-blend'); if (bIn) bIn.value = gridBlend;
+  }
+
+  window.toggleGrid = function () {
+    gridOn = !gridOn;
+    writeLS('dashGridOn', gridOn ? 'true' : 'false');
+    refreshGridBtn();
+    drawPixelGrid();
+  };
+
+  window.setGridStep = function (v) {
+    const n = Math.max(1, Math.min(64, parseInt(v, 10) || 1));
+    gridStep = n;
+    writeLS('dashGridStep', String(n));
+    drawPixelGrid();
+  };
+  // Expose pour debug / tests
+  window.drawPixelGrid = drawPixelGrid;
+
+  // Hook sur applyZoom / load img pour redessiner
+  function hookGridRedraw() {
+    const img = document.getElementById('cmp-left');
+    if (img && !img.__gridHooked) {
+      img.__gridHooked = true;
+      img.addEventListener('load', drawPixelGrid);
+    }
+    drawPixelGrid();
+  }
+  window.addEventListener('resize', drawPixelGrid);
+  window.addEventListener('scroll', drawPixelGrid, true);
+
+  // MutationObserver pour re-hook quand updateCompare reconstruit le DOM
+  const compObserver = new MutationObserver(() => hookGridRedraw());
+  // L'observer est branché dans initExtensions plus bas
+
+  // ============================ HUD COORDS ===================================
+  let hudFrozen = false;
+  let hudCanvas = null, hudCtx = null, hudImgSrc = '';
+
+  function ensureHudCanvas() {
+    const img = document.getElementById('cmp-left');
+    if (!img || !img.naturalWidth) return null;
+    if (hudImgSrc !== img.src || !hudCanvas) {
+      hudCanvas = document.createElement('canvas');
+      hudCanvas.width = img.naturalWidth;
+      hudCanvas.height = img.naturalHeight;
+      hudCtx = hudCanvas.getContext('2d', { willReadFrequently: true });
+      try {
+        hudCtx.drawImage(img, 0, 0);
+        hudImgSrc = img.src;
+      } catch (_) {
+        hudCanvas = null;
+        hudCtx = null;
+      }
+    }
+    return hudCtx;
+  }
+
+  let hudRafPending = false;
+  let hudLastEvent = null;
+  function updateHud(e) {
+    hudLastEvent = e;
+    if (hudRafPending) return;
+    hudRafPending = true;
+    requestAnimationFrame(() => {
+      hudRafPending = false;
+      if (hudFrozen) return;
+      const ev = hudLastEvent;
+      const img = document.getElementById('cmp-left');
+      const hud = document.getElementById('pixel-hud');
+      if (!ev || !img || !img.naturalWidth || !hud) return;
+      const rect = img.getBoundingClientRect();
+      const scale = rect.width / img.naturalWidth;
+      if (scale <= 0) return;
+      const x = Math.floor((ev.clientX - rect.left) / scale);
+      const y = Math.floor((ev.clientY - rect.top) / scale);
+      if (x < 0 || y < 0 || x >= img.naturalWidth || y >= img.naturalHeight) {
+        hud.classList.remove('visible');
+        return;
+      }
+      const ctx = ensureHudCanvas();
+      let rgbHex = '?';
+      let rgb = null;
+      if (ctx) {
+        try {
+          const d = ctx.getImageData(x, y, 1, 1).data;
+          rgb = [d[0], d[1], d[2]];
+          rgbHex = '#' + rgb.map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
+        } catch (_) {}
+      }
+      document.getElementById('pixel-hud-coords').textContent = x + ',' + y;
+      document.getElementById('pixel-hud-rgb').textContent = rgbHex;
+      const swatch = document.getElementById('pixel-hud-swatch');
+      if (rgb) swatch.style.background = 'rgb(' + rgb.join(',') + ')';
+      hud.style.left = (ev.clientX + 14) + 'px';
+      hud.style.top  = (ev.clientY + 18) + 'px';
+      hud.classList.add('visible');
+    });
+  }
+  function hideHud() { document.getElementById('pixel-hud')?.classList.remove('visible'); }
+
+  function attachHud() {
+    const body = document.getElementById('cmp-body');
+    if (!body || body.__hudAttached) return;
+    body.__hudAttached = true;
+    body.addEventListener('mousemove', updateHud);
+    body.addEventListener('mouseleave', hideHud);
+  }
+
+  // ============================ DIFF OVERLAY =================================
+  let diffOn = false;
+  async function computeDiff() {
+    const canvas = document.getElementById('diff-overlay');
+    const imgL = document.getElementById('cmp-left');
+    const imgR = document.getElementById('cmp-right');
+    const badge = document.getElementById('diff-count');
+    if (!canvas || !imgL || !imgR) return;
+    if (!imgL.naturalWidth || !imgR.naturalWidth) {
+      showToast('Images non prêtes pour le diff', 'error');
+      return;
+    }
+    let W = imgL.naturalWidth, H = imgL.naturalHeight;
+    let warning = '';
+    if (W > 2048) {
+      const f = 2048 / W;
+      W = 2048;
+      H = Math.round(H * f);
+      warning = ' · downscalé 2048';
+    }
+    const cL = document.createElement('canvas');
+    cL.width = W; cL.height = H;
+    const ctxL = cL.getContext('2d');
+    ctxL.drawImage(imgL, 0, 0, W, H);
+    const cR = document.createElement('canvas');
+    cR.width = W; cR.height = H;
+    const ctxR = cR.getContext('2d');
+    ctxR.drawImage(imgR, 0, 0, W, H);
+    let dL, dR;
+    try {
+      dL = ctxL.getImageData(0, 0, W, H).data;
+      dR = ctxR.getImageData(0, 0, W, H).data;
+    } catch (_) {
+      showToast('Diff indisponible (CORS)', 'error');
+      return;
+    }
+    const out = ctxL.createImageData(W, H);
+    const outD = out.data;
+    let diffCount = 0;
+    const total = W * H;
+    for (let i = 0; i < dL.length; i += 4) {
+      const lumL = 0.299 * dL[i] + 0.587 * dL[i+1] + 0.114 * dL[i+2];
+      const lumR = 0.299 * dR[i] + 0.587 * dR[i+1] + 0.114 * dR[i+2];
+      const aL = dL[i+3], aR = dR[i+3];
+      if (Math.abs(lumL - lumR) > 4 || Math.abs(aL - aR) > 8) {
+        if (aL < 8 && aR >= 8) {
+          outD[i] = 0; outD[i+1] = 255; outD[i+2] = 0; outD[i+3] = 153;
+        } else {
+          outD[i] = 255; outD[i+1] = 0; outD[i+2] = 0; outD[i+3] = 153;
+        }
+        diffCount++;
+      }
+    }
+    const imgW = imgL.offsetWidth, imgH = imgL.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = imgW + 'px'; canvas.style.height = imgH + 'px';
+    canvas.style.display = 'block';
+    canvas.getContext('2d').putImageData(out, 0, 0);
+    const pct = (100 * diffCount / total).toFixed(1);
+    if (badge) badge.textContent = diffCount.toLocaleString() + ' pxs ' + pct + '%' + warning;
+  }
+
+  window.toggleDiff = async function () {
+    const canvas = document.getElementById('diff-overlay');
+    const btn = document.getElementById('btn-diff');
+    const badge = document.getElementById('diff-count');
+    diffOn = !diffOn;
+    if (diffOn) {
+      btn.classList.add('active');
+      await computeDiff();
+    } else {
+      btn.classList.remove('active');
+      if (canvas) canvas.style.display = 'none';
+      if (badge) badge.textContent = '';
+    }
+  };
+
+  // ============================ NAVIGATION ITERS =============================
+  function clickableIters() {
+    // Cherche les cartes d'iters dans le panneau historique
+    const col = document.getElementById('right-col');
+    if (!col) return [];
+    return [...col.querySelectorAll('.iter-card')];
+  }
+  function currentIterIdx(cards) {
+    return cards.findIndex(c => c.classList.contains('sel-right'));
+  }
+  function selectIterAt(cards, idx) {
+    if (idx < 0 || idx >= cards.length) return;
+    cards[idx].click();
+  }
+  function navIter(delta) {
+    const cards = clickableIters();
+    if (!cards.length) return;
+    const cur = currentIterIdx(cards);
+    const next = Math.max(0, Math.min(cards.length - 1, (cur < 0 ? 0 : cur + delta)));
+    selectIterAt(cards, next);
+  }
+
+  // ============================ KEYBOARD =====================================
+  document.addEventListener('keydown', function (e) {
+    if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'g' || k === 'G') { window.toggleGrid(); e.preventDefault(); }
+    else if (k === 'd' || k === 'D') { window.toggleDiff(); e.preventDefault(); }
+    else if (k === 'ArrowLeft') { navIter(-1); e.preventDefault(); }
+    else if (k === 'ArrowRight') { navIter(+1); e.preventDefault(); }
+    else if (k === 'Home') {
+      const cards = clickableIters();
+      if (cards.length) selectIterAt(cards, 0);
+      e.preventDefault();
+    }
+    else if (k === 'End') {
+      const cards = clickableIters();
+      if (cards.length) selectIterAt(cards, cards.length - 1);
+      e.preventDefault();
+    }
+    else if (k === '?' || k === 'F1') {
+      document.getElementById('kbd-help')?.classList.toggle('visible');
+      e.preventDefault();
+    }
+    else if (k === 'Escape') {
+      document.getElementById('kbd-help')?.classList.remove('visible');
+      const menu = document.querySelector('.ctx-menu');
+      if (menu) menu.remove();
+    }
+    else if (k === 'Shift') { hudFrozen = true; }
+  });
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'Shift') hudFrozen = false;
+  });
+
+  // ============================ ORPHELINS ====================================
+  let __orphanList = [];
+
+  window.__filterOrphans = function (historyKeys, actualStems) {
+    const actualSet = new Set(actualStems);
+    const orphans = historyKeys.filter(k => !actualSet.has(k));
+    __orphanList = orphans;
+    const badge = document.getElementById('orphan-badge');
+    if (badge) {
+      if (orphans.length > 0) {
+        badge.textContent = '🗑 ' + orphans.length + ' orphelins';
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    return new Set(orphans);
+  };
+
+  window.openOrphanCleanupModal = async function () {
+    if (__orphanList.length === 0) return;
+    const ok = await showConfirmModal({
+      title: 'Nettoyer les orphelins',
+      message: 'Retirer ces ' + __orphanList.length + ' entrée(s) de history.json ? Les dossiers outputs/ associés seront archivés dans outputs/_trash/.\n\n' +
+               __orphanList.slice(0, 10).join(', ') + (__orphanList.length > 10 ? '…' : ''),
+      confirmLabel: 'Nettoyer',
+    });
+    if (!ok) return;
+    try {
+      const resp = await fetch('/api/history/prune', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ basenames: __orphanList }),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      showToast('Orphelins nettoyés : ' + (data.pruned?.length || 0) + ' entrée(s) archivée(s)', 'success');
+      if (typeof window.loadHistory === 'function') window.loadHistory();
+    } catch (err) {
+      showToast('Échec du nettoyage : ' + err.message, 'error');
+    }
+  };
+
+  // ============================ UPLOAD DRAG-DROP =============================
+  const ALLOWED_EXT = ['.png', '.webp', '.jpg', '.jpeg'];
+  const MAX_SIZE = 20 * 1024 * 1024;
+
+  function extOf(name) {
+    const i = (name || '').lastIndexOf('.');
+    return i >= 0 ? name.substring(i).toLowerCase() : '';
+  }
+
+  async function uploadFile(file, overrideName) {
+    if (file.size > MAX_SIZE) {
+      showToast('Fichier trop gros (> 20 MB)', 'error');
+      return false;
+    }
+    const ext = extOf(overrideName || file.name);
+    if (!ALLOWED_EXT.includes(ext)) {
+      showToast('Format non supporté (PNG/WebP/JPG uniquement)', 'error');
+      return false;
+    }
+    const fd = new FormData();
+    if (overrideName) {
+      fd.append('file', file, overrideName);
+    } else {
+      fd.append('file', file);
+    }
+    try {
+      const resp = await fetch('/api/inputs', { method: 'POST', body: fd });
+      if (resp.status === 409) {
+        const data = await resp.json();
+        const ok = await showConfirmModal({
+          title: 'Nom déjà existant',
+          message: data.message + '\nUtiliser "' + data.suggestion + '" à la place ?',
+          confirmLabel: 'Renommer',
+        });
+        if (ok) return uploadFile(file, data.suggestion);
+        return false;
+      }
+      if (resp.status === 413) {
+        showToast('Fichier trop gros (> 20 MB)', 'error');
+        return false;
+      }
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        showToast('Upload échoué : ' + (data.message || resp.status), 'error');
+        return false;
+      }
+      const data = await resp.json();
+      showToast((data.basename || file.name) + ' ajouté aux inputs', 'success');
+      if (typeof window.loadHistory === 'function') window.loadHistory();
+      window.__pendingActivate = data.basename;
+      return true;
+    } catch (err) {
+      showToast('Erreur réseau : ' + err.message, 'error');
+      return false;
+    }
+  }
+
+  function bindDragDrop() {
+    const sidebar = document.getElementById('sidebar-root');
+    if (!sidebar || sidebar.__ddBound) return;
+    sidebar.__ddBound = true;
+    ['dragenter', 'dragover'].forEach(evt => {
+      sidebar.addEventListener(evt, (e) => {
+        if (!e.dataTransfer) return;
+        if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          sidebar.classList.add('dragging-over');
+        }
+      });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      sidebar.addEventListener(evt, (e) => {
+        if (evt === 'dragleave' && e.target !== sidebar) return;
+        sidebar.classList.remove('dragging-over');
+      });
+    });
+    sidebar.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const files = [...(e.dataTransfer?.files || [])];
+      if (files.length === 0) return;
+      if (files.length > 1) {
+        showToast('Dépose un fichier à la fois pour l’instant', 'error');
+        return;
+      }
+      await uploadFile(files[0]);
+    });
+  }
+
+  // ============================ DELETE IMAGE =================================
+  window.deleteInputImage = async function (basename) {
+    const stem = basename.replace(/\.[^.]+$/, '');
+    const state = (typeof window.__appState === 'function') ? window.__appState() : { history: {} };
+    const nIters = (state.history[stem] && state.history[stem].runs?.length) || 0;
+    const ok = await showConfirmModal({
+      title: 'Supprimer ' + basename + ' ?',
+      message: 'L’image source et ' + nIters + ' iter(s) associée(s) seront archivées dans _trash/.',
+      confirmLabel: 'Supprimer',
+    });
+    if (!ok) return;
+    try {
+      const resp = await fetch('/api/inputs/' + encodeURIComponent(basename), { method: 'DELETE' });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        showToast('Échec : ' + (data.error || resp.status), 'error');
+        return;
+      }
+      showToast(basename + ' supprimée (archivée dans _trash/)', 'success');
+      if (typeof window.loadHistory === 'function') window.loadHistory();
+    } catch (err) {
+      showToast('Erreur réseau : ' + err.message, 'error');
+    }
+  };
+
+  // Context menu sur .img-item
+  function openCtxMenu(x, y, basename) {
+    document.querySelectorAll('.ctx-menu').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu';
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.innerHTML = '<button>🗑 Supprimer</button>';
+    menu.querySelector('button').onclick = () => {
+      menu.remove();
+      window.deleteInputImage(basename);
+    };
+    document.body.appendChild(menu);
+    setTimeout(() => {
+      document.addEventListener('click', function closer() {
+        menu.remove();
+        document.removeEventListener('click', closer);
+      });
+    }, 0);
+  }
+
+  function bindContextMenu() {
+    const list = document.getElementById('sidebar-list');
+    if (!list) return;
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('.ctx-btn');
+      if (!btn) return;
+      e.stopPropagation();
+      const item = btn.closest('.img-item');
+      const name = item?.dataset?.basename;
+      if (name) {
+        const r = btn.getBoundingClientRect();
+        openCtxMenu(r.right, r.bottom, name);
+      }
+    });
+    list.addEventListener('contextmenu', (e) => {
+      const item = e.target.closest('.img-item');
+      const name = item?.dataset?.basename;
+      if (name) {
+        e.preventDefault();
+        openCtxMenu(e.clientX, e.clientY, name);
+      }
+    });
+  }
+
+  // ============================ SLICING ======================================
+  let slicingConfig = { base: null, overrides: [] };
+  let slicingEditMode = false;
+  let slicingCurrentBasename = null;
+
+  function getSlicingPanel() { return document.getElementById('slicing-panel'); }
+
+  async function loadSlicingForActiveImage() {
+    const state = window.__appState ? window.__appState() : {};
+    const active = state.activeImage;
+    if (!active) {
+      slicingConfig = { base: null, overrides: [] };
+      slicingCurrentBasename = null;
+      getSlicingPanel()?.classList.remove('visible');
+      document.getElementById('constraints-panel')?.classList.remove('visible');
+      document.getElementById('export-panel')?.classList.remove('visible');
+      document.getElementById('cleanup-panel')?.classList.remove('visible');
+      document.getElementById('autotile-panel')?.classList.remove('visible');
+      drawSlicingOverlay();
+      return;
+    }
+    const basename = (state.history?.[active]?.source || '').split('/').pop() || (active + '.png');
+    slicingCurrentBasename = basename;
+    try {
+      const r = await fetch('/api/slicing/' + encodeURIComponent(basename));
+      if (r.ok) slicingConfig = await r.json();
+    } catch (_) {
+      slicingConfig = { base: null, overrides: [] };
+    }
+    if (!slicingConfig || typeof slicingConfig !== 'object') slicingConfig = { base: null, overrides: [] };
+    if (!Array.isArray(slicingConfig.overrides)) slicingConfig.overrides = [];
+    getSlicingPanel()?.classList.add('visible');
+    document.getElementById('constraints-panel')?.classList.add('visible');
+    document.getElementById('export-panel')?.classList.add('visible');
+    document.getElementById('cleanup-panel')?.classList.add('visible');
+    document.getElementById('autotile-panel')?.classList.add('visible');
+    populateSlicingInputs();
+    drawSlicingOverlay();
+  }
+
+  function populateSlicingInputs() {
+    const b = slicingConfig.base || {};
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val ?? ''); };
+    set('sp-cols', b.cols ?? 8);
+    set('sp-rows', b.rows ?? 4);
+    set('sp-cellw', b.cellW ?? 16);
+    set('sp-cellh', b.cellH ?? 16);
+    set('sp-gapx', b.gapX ?? 0);
+    set('sp-gapy', b.gapY ?? 0);
+    set('sp-marginx', b.marginX ?? 0);
+    set('sp-marginy', b.marginY ?? 0);
+  }
+
+  function readSlicingInputs() {
+    const intV = (id, def) => {
+      const v = parseInt(document.getElementById(id)?.value, 10);
+      return Number.isFinite(v) ? v : def;
+    };
+    return {
+      cols: Math.max(1, Math.min(256, intV('sp-cols', 8))),
+      rows: Math.max(1, Math.min(256, intV('sp-rows', 4))),
+      cellW: Math.max(1, Math.min(1024, intV('sp-cellw', 16))),
+      cellH: Math.max(1, Math.min(1024, intV('sp-cellh', 16))),
+      gapX: Math.max(0, Math.min(64, intV('sp-gapx', 0))),
+      gapY: Math.max(0, Math.min(64, intV('sp-gapy', 0))),
+      marginX: Math.max(0, Math.min(64, intV('sp-marginx', 0))),
+      marginY: Math.max(0, Math.min(64, intV('sp-marginy', 0))),
+    };
+  }
+
+  window.applySlicing = async function () {
+    if (!slicingCurrentBasename) {
+      showToast('Aucune image active', 'error');
+      return;
+    }
+    const base = readSlicingInputs();
+    slicingConfig.base = base;
+    try {
+      const r = await fetch('/api/slicing/' + encodeURIComponent(slicingCurrentBasename), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base, overrides: slicingConfig.overrides }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showToast('Slicing rejeté : ' + (err.details?.[0] || err.error || r.status), 'error');
+        return;
+      }
+      slicingConfig = await r.json();
+      if (!slicingConfig.overrides) slicingConfig.overrides = [];
+      drawSlicingOverlay();
+      showToast('Découpe appliquée', 'success');
+    } catch (e) {
+      showToast('Erreur réseau : ' + e.message, 'error');
+    }
+  };
+
+  window.clearSlicing = async function () {
+    if (!slicingCurrentBasename) return;
+    const ok = await showConfirmModal({
+      title: 'Retirer la découpe ?',
+      message: 'Toute la config de découpe (grille + overrides) sera supprimée pour cette image.',
+      confirmLabel: 'Retirer',
+    });
+    if (!ok) return;
+    try {
+      await fetch('/api/slicing/' + encodeURIComponent(slicingCurrentBasename), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base: null, overrides: [] }),
+      });
+      slicingConfig = { base: null, overrides: [] };
+      drawSlicingOverlay();
+      showToast('Découpe retirée', 'success');
+    } catch (e) {
+      showToast('Erreur : ' + e.message, 'error');
+    }
+  };
+
+  window.toggleSlicingEditMode = function () {
+    slicingEditMode = !slicingEditMode;
+    const btn = document.getElementById('sp-edit-btn');
+    const body = document.getElementById('cmp-body');
+    if (slicingEditMode) {
+      btn?.classList.add('active');
+      body?.classList.add('slicing-edit-mode');
+    } else {
+      btn?.classList.remove('active');
+      body?.classList.remove('slicing-edit-mode');
+      document.querySelectorAll('.slicing-popover').forEach(p => p.remove());
+    }
+  };
+
+  function findOverride(cx, cy, type) {
+    return slicingConfig.overrides.find(o => o.cellX === cx && o.cellY === cy && o.type === type);
+  }
+  function setOverride(cx, cy, type, extra = {}) {
+    slicingConfig.overrides = slicingConfig.overrides.filter(o => !(o.cellX === cx && o.cellY === cy && o.type === type));
+    slicingConfig.overrides.push(Object.assign({ cellX: cx, cellY: cy, type }, extra));
+  }
+  function removeOverride(cx, cy, type) {
+    slicingConfig.overrides = slicingConfig.overrides.filter(o => !(o.cellX === cx && o.cellY === cy && o.type === type));
+  }
+
+  async function persistSlicing() {
+    if (!slicingCurrentBasename || !slicingConfig.base) return;
+    try {
+      await fetch('/api/slicing/' + encodeURIComponent(slicingCurrentBasename), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(slicingConfig),
+      });
+    } catch (_) {}
+  }
+
+  function cellRect(cx, cy) {
+    const b = slicingConfig.base;
+    if (!b) return null;
+    let w = b.cellW, h = b.cellH;
+    const merge = findOverride(cx, cy, 'merge');
+    if (merge) { w = b.cellW * (merge.w || 1) + b.gapX * ((merge.w || 1) - 1); h = b.cellH * (merge.h || 1) + b.gapY * ((merge.h || 1) - 1); }
+    const resize = findOverride(cx, cy, 'resize');
+    if (resize) { w = resize.w || w; h = resize.h || h; }
+    const x = b.marginX + cx * (b.cellW + b.gapX);
+    const y = b.marginY + cy * (b.cellH + b.gapY);
+    return { x, y, w, h };
+  }
+
+  function isMergeMember(cx, cy) {
+    return slicingConfig.overrides.some(o => {
+      if (o.type !== 'merge') return false;
+      const dx = cx - o.cellX, dy = cy - o.cellY;
+      return dx >= 0 && dy >= 0 && dx < (o.w || 1) && dy < (o.h || 1) && (dx > 0 || dy > 0);
+    });
+  }
+
+  function drawSlicingOverlay() {
+    const canvas = document.getElementById('slicing-overlay');
+    const img = document.getElementById('cmp-left');
+    if (!canvas || !img) return;
+    const b = slicingConfig.base;
+    if (!b || !img.naturalWidth) {
+      canvas.style.display = 'none';
+      return;
+    }
+    const w = img.offsetWidth, h = img.offsetHeight;
+    const sx = w / img.naturalWidth;
+    const sy = h / img.naturalHeight;
+    canvas.width = w; canvas.height = h;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = '10px Consolas, ui-monospace, monospace';
+    ctx.textBaseline = 'top';
+    for (let cy = 0; cy < b.rows; cy++) {
+      for (let cx = 0; cx < b.cols; cx++) {
+        if (isMergeMember(cx, cy)) continue;
+        const r = cellRect(cx, cy);
+        if (!r) continue;
+        const x = r.x * sx, y = r.y * sy, ww = r.w * sx, hh = r.h * sy;
+        const isIgnored = !!findOverride(cx, cy, 'ignore');
+        ctx.strokeStyle = isIgnored ? 'rgba(150,150,150,0.6)' : 'rgba(124,111,239,0.6)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, ww - 1, hh - 1);
+        if (isIgnored) {
+          ctx.fillStyle = 'rgba(60,60,60,0.5)';
+          ctx.fillRect(x, y, ww, hh);
+          ctx.strokeStyle = 'rgba(200,200,200,0.7)';
+          ctx.beginPath();
+          ctx.moveTo(x, y); ctx.lineTo(x + ww, y + hh);
+          ctx.moveTo(x + ww, y); ctx.lineTo(x, y + hh);
+          ctx.stroke();
+        }
+        const nameOv = findOverride(cx, cy, 'name');
+        const label = nameOv ? nameOv.name : (cx + ',' + cy);
+        ctx.fillStyle = nameOv ? '#ef6fba' : '#7c6fef';
+        ctx.fillText(label, x + 3, y + 3);
+      }
+    }
+  }
+
+  function pickCellFromEvent(ev) {
+    const img = document.getElementById('cmp-left');
+    if (!img || !slicingConfig.base) return null;
+    const rect = img.getBoundingClientRect();
+    const sx = rect.width / img.naturalWidth;
+    const sy = rect.height / img.naturalHeight;
+    const px = (ev.clientX - rect.left) / sx;
+    const py = (ev.clientY - rect.top) / sy;
+    const b = slicingConfig.base;
+    const cx = Math.floor((px - b.marginX) / (b.cellW + b.gapX));
+    const cy = Math.floor((py - b.marginY) / (b.cellH + b.gapY));
+    if (cx < 0 || cy < 0 || cx >= b.cols || cy >= b.rows) return null;
+    return { cx, cy };
+  }
+
+  function openSlicingPopover(ev, cell) {
+    document.querySelectorAll('.slicing-popover').forEach(p => p.remove());
+    const pop = document.createElement('div');
+    pop.className = 'slicing-popover';
+    pop.style.left = ev.clientX + 'px';
+    pop.style.top = ev.clientY + 'px';
+    const isIgn = !!findOverride(cell.cx, cell.cy, 'ignore');
+    const nameOv = findOverride(cell.cx, cell.cy, 'name');
+    pop.innerHTML = `
+      <div class="sp-cell-info">Cellule (${cell.cx}, ${cell.cy})${nameOv ? ' · ' + nameOv.name : ''}</div>
+      <button data-action="resize">Redimensionner…</button>
+      <button data-action="merge">Fusionner avec voisins…</button>
+      <button data-action="ignore">${isIgn ? '✓ Ignorer (cliquer pour annuler)' : 'Ignorer cette cellule'}</button>
+      <button data-action="name">Nommer…</button>
+    `;
+    pop.addEventListener('click', async (e) => {
+      const action = e.target.dataset?.action;
+      if (!action) return;
+      pop.remove();
+      if (action === 'ignore') {
+        if (isIgn) removeOverride(cell.cx, cell.cy, 'ignore');
+        else setOverride(cell.cx, cell.cy, 'ignore');
+      } else if (action === 'resize') {
+        const cur = findOverride(cell.cx, cell.cy, 'resize');
+        const wStr = prompt('Largeur (px natifs)', cur?.w ?? slicingConfig.base.cellW);
+        if (wStr === null) return;
+        const hStr = prompt('Hauteur (px natifs)', cur?.h ?? slicingConfig.base.cellH);
+        if (hStr === null) return;
+        setOverride(cell.cx, cell.cy, 'resize', { w: parseInt(wStr, 10), h: parseInt(hStr, 10) });
+      } else if (action === 'merge') {
+        const wStr = prompt('Fusionner combien de colonnes ?', '2');
+        if (wStr === null) return;
+        const hStr = prompt('Fusionner combien de lignes ?', '1');
+        if (hStr === null) return;
+        setOverride(cell.cx, cell.cy, 'merge', { w: parseInt(wStr, 10), h: parseInt(hStr, 10) });
+      } else if (action === 'name') {
+        const cur = findOverride(cell.cx, cell.cy, 'name');
+        const n = prompt('Nom custom (vide pour effacer)', cur?.name || '');
+        if (n === null) return;
+        if (n.trim()) setOverride(cell.cx, cell.cy, 'name', { name: n.trim() });
+        else removeOverride(cell.cx, cell.cy, 'name');
+      }
+      drawSlicingOverlay();
+      await persistSlicing();
+    });
+    document.body.appendChild(pop);
+    setTimeout(() => {
+      const closer = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', closer, true); } };
+      document.addEventListener('click', closer, true);
+    }, 0);
+  }
+
+  function bindSlicingClick() {
+    const body = document.getElementById('cmp-body');
+    if (!body || body.__slBound) return;
+    body.__slBound = true;
+    body.addEventListener('click', (ev) => {
+      if (!slicingEditMode || !slicingConfig.base) return;
+      const cell = pickCellFromEvent(ev);
+      if (cell) openSlicingPopover(ev, cell);
+    });
+  }
+
+  // Hook selectImage pour charger la config slicing
+  const origSelectImage2 = window.selectImage;
+  if (typeof origSelectImage2 === 'function') {
+    window.selectImage = function () {
+      const r = origSelectImage2.apply(this, arguments);
+      loadSlicingForActiveImage();
+      return r;
+    };
+  }
+  window.drawSlicingOverlay = drawSlicingOverlay;
+  window.loadSlicingForActiveImage = loadSlicingForActiveImage;
+
+  // ============================ CONSTRAINTS ==================================
+  let lastViolations = [];
+
+  window.validateConstraints = async function () {
+    if (!slicingCurrentBasename || !slicingConfig.base) {
+      showToast('Définis d’abord une grille', 'error');
+      return;
+    }
+    const enabled = document.getElementById('cn-enabled')?.checked;
+    if (!enabled) {
+      showToast('Active les contraintes pour valider', 'error');
+      return;
+    }
+    const constraints = {
+      mulN: parseInt(document.getElementById('cn-muln').value, 10) || null,
+      pot: !!document.getElementById('cn-pot')?.checked,
+    };
+    try {
+      const r = await fetch('/api/constraints/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: slicingCurrentBasename,
+          grid: slicingConfig,
+          constraints,
+        }),
+      });
+      const data = await r.json();
+      lastViolations = data.violations || [];
+      const report = document.getElementById('constraint-report');
+      if (lastViolations.length === 0) {
+        report.innerHTML = '<span style="color:var(--green)">✓ Aucune violation détectée</span>';
+        showToast('Toutes les cellules respectent les contraintes', 'success');
+      } else {
+        report.innerHTML = lastViolations.map(v =>
+          `<div style="padding:2px 0">⚠ (${v.cellX},${v.cellY}) ${v.issue} <span style="color:var(--accent)">→ ${v.suggestion}</span></div>`
+        ).join('');
+        showToast(lastViolations.length + ' violation(s) — voir rapport', 'error');
+      }
+      drawSlicingOverlay();
+      drawConstraintOverlay();
+    } catch (e) {
+      showToast('Erreur : ' + e.message, 'error');
+    }
+  };
+
+  function drawConstraintOverlay() {
+    const canvas = document.getElementById('slicing-overlay');
+    const img = document.getElementById('cmp-left');
+    if (!canvas || !img || !slicingConfig.base || lastViolations.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    const sx = canvas.width / img.naturalWidth;
+    const sy = canvas.height / img.naturalHeight;
+    lastViolations.forEach(v => {
+      const r = cellRect(v.cellX, v.cellY);
+      if (!r) return;
+      const x = r.x * sx, y = r.y * sy, ww = r.w * sx, hh = r.h * sy;
+      ctx.fillStyle = 'rgba(239,96,96,0.35)';
+      ctx.fillRect(x, y, ww, hh);
+      ctx.strokeStyle = '#ef6060';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, ww - 2, hh - 2);
+      const issueShort = v.type === 'mulN' ? '≠ mulN' : (v.type === 'pot' ? '≠ POT' : '!');
+      ctx.fillStyle = '#ef6060';
+      ctx.font = 'bold 10px Consolas, monospace';
+      ctx.fillText(issueShort, x + 3, y + hh - 12);
+    });
+  }
+  window.drawConstraintOverlay = drawConstraintOverlay;
+
+  // ============================ EXPORT =======================================
+  window.exportSpritesheet = async function () {
+    if (!slicingCurrentBasename || !slicingConfig.base) {
+      showToast('Définis d’abord une grille slicing', 'error');
+      return;
+    }
+    const fmt = document.getElementById('ex-format').value;
+    const template = document.getElementById('ex-template').value || '{basename}_{col}_{row}';
+    const pivot = !!document.getElementById('ex-pivot').checked;
+    try {
+      showToast('Export en cours…', 'info');
+      const r = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: slicingCurrentBasename, format: fmt, template, options: { pivot },
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showToast('Échec : ' + (err.error || r.status), 'error');
+        return;
+      }
+      const frameCount = r.headers.get('X-Frames-Count') || '?';
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = slicingCurrentBasename.replace(/\.[^.]+$/, '') + '_' + fmt + '.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('Export OK : ' + frameCount + ' frame(s)', 'success');
+    } catch (e) {
+      showToast('Erreur : ' + e.message, 'error');
+    }
+  };
+
+  // ============================ CLEANUP ======================================
+  function requireSlicing() {
+    if (!slicingCurrentBasename || !slicingConfig.base) {
+      showToast('Définis d’abord une grille slicing', 'error');
+      return false;
+    }
+    return true;
+  }
+
+  function writeCleanupResult(html) {
+    const el = document.getElementById('cleanup-result');
+    if (el) el.innerHTML = html;
+  }
+
+  window.detectDuplicates = async function () {
+    if (!requireSlicing()) return;
+    try {
+      const r = await fetch('/api/cleanup/detect-duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: slicingCurrentBasename, similarity_threshold: 5 }),
+      });
+      const data = await r.json();
+      const pairs = data.pairs || [];
+      if (pairs.length === 0) {
+        writeCleanupResult('<span style="color:var(--green)">✓ Aucun doublon détecté</span>');
+        showToast('Aucun doublon', 'success');
+      } else {
+        writeCleanupResult(pairs.map(p =>
+          `<div style="padding:2px 0">🔁 (${p.a.cellX},${p.a.cellY}) ↔ (${p.b.cellX},${p.b.cellY}) <span style="color:var(--accent)">Hamming=${p.hamming}</span></div>`
+        ).join(''));
+        showToast(pairs.length + ' paire(s) de doublons', 'info');
+      }
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  };
+
+  window.detectSubpixel = async function () {
+    if (!requireSlicing()) return;
+    try {
+      const r = await fetch('/api/cleanup/detect-subpixel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: slicingCurrentBasename }),
+      });
+      const data = await r.json();
+      const shifts = data.shifts || [];
+      if (shifts.length === 0) {
+        writeCleanupResult('<span style="color:var(--green)">✓ Aucun décalage sous-pixel suspect</span>');
+        showToast('Pas de décalage', 'success');
+      } else {
+        writeCleanupResult(shifts.map(s =>
+          `<div style="padding:2px 0">↔ (${s.cell.cellX},${s.cell.cellY}) Δ=(${s.delta.x}, ${s.delta.y}) px <span style="color:var(--accent)">|Δ|=${s.magnitude}</span></div>`
+        ).join(''));
+        showToast(shifts.length + ' décalage(s) détecté(s)', 'info');
+      }
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  };
+
+  window.normalizeCells = async function () {
+    if (!requireSlicing()) return;
+    const ok = await showConfirmModal({
+      title: 'Normaliser taille uniforme ?',
+      message: 'Toutes les cellules seront paddées à la taille max détectée (alignement centré). Une nouvelle iter sera produite dans outputs/.',
+      confirmLabel: 'Normaliser',
+    });
+    if (!ok) return;
+    try {
+      showToast('Normalisation en cours…', 'info');
+      const r = await fetch('/api/cleanup/normalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: slicingCurrentBasename, alignment: 'center' }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showToast('Échec : ' + (err.error || r.status), 'error');
+        return;
+      }
+      const data = await r.json();
+      writeCleanupResult(`<span style="color:var(--green)">✓ Iter produite : ${data.iter} (${data.dimensions[0]}×${data.dimensions[1]})</span>`);
+      showToast('Iter normalisée créée · cellules ' + data.cellSize.join('×'), 'success');
+      if (typeof window.loadHistory === 'function') window.loadHistory();
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  };
+
+  window.exportCleanupReport = async function () {
+    if (!requireSlicing()) return;
+    try {
+      const url = '/api/cleanup/report?image=' + encodeURIComponent(slicingCurrentBasename);
+      const r = await fetch(url);
+      if (!r.ok) { showToast('Échec rapport', 'error'); return; }
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = slicingCurrentBasename.replace(/\.[^.]+$/, '') + '_report.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('Rapport téléchargé', 'success');
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  };
+
+  // ============================ AUTO-TILE ====================================
+  const AT_SLOTS_BY_MODE = {
+    wang16: [['base', 'Base'], ['edge', 'Bord']],
+    wang47: [['base', 'Base'], ['edge', 'Bord'], ['corner_in', 'Coin intérieur'], ['corner_out', 'Coin extérieur']],
+    wang256: [['base', 'Base'], ['edge', 'Bord']],
+  };
+  const atTiles = {}; // key → dataURL
+
+  window.updateAutotileSlots = function () {
+    const mode = document.getElementById('at-mode')?.value || 'wang16';
+    const container = document.getElementById('at-slots');
+    if (!container) return;
+    const slots = AT_SLOTS_BY_MODE[mode] || [];
+    container.innerHTML = slots.map(([k, label]) => `
+      <label style="display:flex;flex-direction:column;gap:3px;cursor:pointer">
+        <span>${label}</span>
+        <input type="file" accept="image/png,image/webp" data-key="${k}" style="font-size:.62rem">
+        <img id="at-preview-${k}" alt="" style="width:48px;height:48px;image-rendering:pixelated;background:var(--surface2);border:1px solid var(--border);border-radius:4px;object-fit:contain;${atTiles[k] ? '' : 'display:none'}" ${atTiles[k] ? `src="${atTiles[k]}"` : ''}>
+      </label>
+    `).join('');
+    container.querySelectorAll('input[type=file]').forEach(inp => {
+      inp.addEventListener('change', async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const url = ev.target.result;
+          atTiles[inp.dataset.key] = url;
+          const prev = document.getElementById('at-preview-' + inp.dataset.key);
+          if (prev) { prev.src = url; prev.style.display = 'block'; }
+        };
+        reader.readAsDataURL(f);
+      });
+    });
+  };
+
+  window.generateAutotile = async function () {
+    const mode = document.getElementById('at-mode').value;
+    const tileSize = parseInt(document.getElementById('at-size').value, 10);
+    const required = AT_SLOTS_BY_MODE[mode].map(([k]) => k);
+    const missing = required.filter(k => !atTiles[k]);
+    if (missing.length) {
+      showToast('Tiles manquantes : ' + missing.join(', '), 'error');
+      return;
+    }
+    try {
+      showToast('Génération auto-tile…', 'info');
+      const r = await fetch('/api/autotile/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode, tile_size: tileSize, tiles: atTiles,
+          image: slicingCurrentBasename || null,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showToast('Échec : ' + (err.error || r.status), 'error');
+        return;
+      }
+      const data = await r.json();
+      showToast('Auto-tile généré : ' + data.iter + ' (' + data.gridLayout.cols + '×' + data.gridLayout.rows + ')', 'success');
+      if (typeof window.loadHistory === 'function') window.loadHistory();
+    } catch (e) {
+      showToast('Erreur : ' + e.message, 'error');
+    }
+  };
+
+  // ============================ INIT =========================================
+  function initExtensions() {
+    refreshGridBtn();
+    refreshBgInvertToggle();
+    bindDragDrop();
+    bindContextMenu();
+    attachHud();
+    // Observe main to re-hook HUD + grid after updateCompare rebuild
+    const main = document.querySelector('main') || document.getElementById('center-col');
+    if (main) {
+      new MutationObserver(() => {
+        attachHud();
+        refreshGridBtn();
+        drawPixelGrid();
+        bindSlicingClick();
+        drawSlicingOverlay();
+      }).observe(main, { childList: true, subtree: true });
+    }
+    bindSlicingClick();
+    loadSlicingForActiveImage();
+    if (typeof window.updateAutotileSlots === 'function') window.updateAutotileSlots();
+    // Hook applyZoom / applyDivider pour redessiner
+    const origApplyZoom = window.applyZoom;
+    if (typeof origApplyZoom === 'function') {
+      window.applyZoom = function () {
+        const r = origApplyZoom.apply(this, arguments);
+        drawPixelGrid();
+        return r;
+      };
+    }
+    // Observe cmp-body re-creation for grid
+    setTimeout(drawPixelGrid, 500);
+  }
+  window.initExtensions = initExtensions;
+  // Auto-call après DOMContentLoaded si le DOM est prêt, sinon immédiatement
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initExtensions());
+  } else {
+    initExtensions();
+  }
+})();
+</script>
+
 </body>
 </html>
