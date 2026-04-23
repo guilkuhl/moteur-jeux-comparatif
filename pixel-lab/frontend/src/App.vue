@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import Sidebar from '@/components/Sidebar.vue';
 import ComparePane from '@/components/ComparePane.vue';
 import ConvertPanel from '@/components/ConvertPanel.vue';
+import CommandPalette from '@/components/CommandPalette.vue';
 import { usePreviewStore } from '@/stores/preview';
 import { useThemeStore } from '@/stores/theme';
 import { useImagesStore } from '@/stores/images';
@@ -54,6 +55,7 @@ window.addEventListener('beforeunload', () => preview.revokeCurrent());
     <Sidebar />
     <ComparePane />
     <ConvertPanel />
+    <CommandPalette />
     <div v-if="isDragging" class="drop-overlay" aria-live="polite">
       <div class="drop-hint">Lâcher pour importer</div>
     </div>
