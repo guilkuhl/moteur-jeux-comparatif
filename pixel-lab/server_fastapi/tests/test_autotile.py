@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import base64
 import io
+import shutil
+from collections.abc import Iterator
 
+import pytest
 from PIL import Image
 
 
@@ -14,7 +17,22 @@ def _tile_data_url(color: tuple[int, int, int, int], size: int = 16) -> str:
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def test_autotile_wang16_generates_atlas(client):
+@pytest.fixture
+def clean_autotile_outputs() -> Iterator[None]:
+    """Purge les dossiers `outputs/autotile_*` créés par les tests, et nettoie history."""
+    from server_fastapi.deps import OUTPUTS_DIR
+    from server_fastapi.services import history_store
+
+    before = {p.name for p in OUTPUTS_DIR.glob("autotile_*") if p.is_dir()}
+    yield
+    # Purge des dossiers neufs
+    for p in OUTPUTS_DIR.glob("autotile_*"):
+        if p.is_dir() and p.name not in before:
+            shutil.rmtree(p, ignore_errors=True)
+            history_store.update(lambda h, name=p.name: h.pop(name, None))
+
+
+def test_autotile_wang16_generates_atlas(client, clean_autotile_outputs):
     r = client.post(
         "/api/autotile/generate",
         json={

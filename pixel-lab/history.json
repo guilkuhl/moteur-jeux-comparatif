@@ -165,33 +165,5 @@
         "timestamp": "2026-04-22T22:25:59"
       }
     ]
-  },
-  "autotile_20260423_135239": {
-    "source": "outputs/autotile_20260423_135239/iter_001_autotile_wang16.png",
-    "runs": [
-      {
-        "algo": "autotile",
-        "method": "wang16",
-        "params": {
-          "tile_size": 16
-        },
-        "output": "outputs/autotile_20260423_135239/iter_001_autotile_wang16.png",
-        "timestamp": "2026-04-23T13:52:39"
-      }
-    ]
-  },
-  "autotile_20260423_135308": {
-    "source": "outputs/autotile_20260423_135308/iter_001_autotile_wang16.png",
-    "runs": [
-      {
-        "algo": "autotile",
-        "method": "wang16",
-        "params": {
-          "tile_size": 16
-        },
-        "output": "outputs/autotile_20260423_135308/iter_001_autotile_wang16.png",
-        "timestamp": "2026-04-23T13:53:08"
-      }
-    ]
   }
 }
