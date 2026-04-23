@@ -38,10 +38,10 @@ async def stream_job(job_id: str):
         raise HTTPException(status_code=404, detail="job introuvable")
 
     async def event_gen():
-        last_keepalive = asyncio.get_event_loop().time()
+        asyncio.get_event_loop().time()
         async for evt in job_store.subscribe(job_id):
             yield f"data: {json.dumps(evt)}\n\n"
-            last_keepalive = asyncio.get_event_loop().time()
+            asyncio.get_event_loop().time()
         # après un `done`, on sort du générateur
 
     return StreamingResponse(

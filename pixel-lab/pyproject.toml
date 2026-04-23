@@ -1,0 +1,45 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# V1 : règles essentielles (imports, unused, pyupgrade, bugbear, simplify).
+# Exclusions style-only (E402, E701, E702, ARG, PTH) : le code historique
+# ported les viole ponctuellement ; on priorise la migration, pas la
+# chasse au style. À durcir dans un change ultérieur.
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "E402",   # import order — les scripts ont des sys.path.insert avant les imports
+    "E501",   # line too long — laissé au formatter
+    "E701",   # multiple statements on one line (code historique)
+    "E702",   # idem avec semicolon
+    "B008",   # FastAPI Depends() en default
+    "UP007",  # Union | None vs Optional[X] — laissé au style du module
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/server_fastapi/tests/**" = ["B"]
+
+[tool.pytest.ini_options]
+testpaths = ["server_fastapi/tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:fastapi.*",
+    "ignore::DeprecationWarning:starlette.*",
+]
+
+[tool.coverage.run]
+source = ["server_fastapi", "scripts/apply_step.py"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+# Barre V1 modeste : les scenarios bout-en-bout viendront dans les suites
+# pytest complètes + tests e2e Playwright. L'objectif est que la CI passe
+# maintenant avec un gate pas ridiculement bas, et qu'on monte la barre
+# progressivement à 60 % au fil des tests ajoutés.
+fail_under = 30
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

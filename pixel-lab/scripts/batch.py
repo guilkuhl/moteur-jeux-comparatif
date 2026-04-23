@@ -12,9 +12,9 @@ Usage :
     py scripts/batch.py --only sharpen      # limite les algos
 """
 
-import sys
-import json
 import argparse
+import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent

@@ -4,9 +4,8 @@ from __future__ import annotations
 import io
 from typing import Any
 
-from PIL import Image
-
 from apply_step import _cast_params  # type: ignore[import-not-found]
+from PIL import Image
 
 from ..deps import ALGO_MODULES, resolve_input
 from .preview_cache import preview_cache

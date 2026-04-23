@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -56,10 +57,8 @@ class JobStore:
         if loop is None:
             return
         for q in list(job.subscribers):
-            try:
+            with contextlib.suppress(RuntimeError):
                 loop.call_soon_threadsafe(q.put_nowait, event)
-            except RuntimeError:
-                pass
 
     def get(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
@@ -80,7 +79,7 @@ class JobStore:
                 yield evt
                 if evt.get("type") == "done":
                     return
-                if job.state == "done" and not job.events[-1:] == [evt]:
+                if job.state == "done" and job.events[-1:] != [evt]:
                     # sécurité : si le job est marqué done mais on n'a pas reçu l'event
                     return
         finally:

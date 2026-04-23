@@ -4,12 +4,12 @@ de chaque fonction exposée dans METHODS.
 """
 
 import inspect
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from algorithms import sharpen, scale2x, denoise, pixelsnap
+from algorithms import denoise, pixelsnap, scale2x, sharpen
 
 # Mapping explicite METHODS key → fonction réelle (nécessaire quand les noms diffèrent)
 ALGO_FUNC_MAP = {

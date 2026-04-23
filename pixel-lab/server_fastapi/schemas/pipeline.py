@@ -18,7 +18,7 @@ class PipelineStep(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _check_method_and_params(self) -> "PipelineStep":
+    def _check_method_and_params(self) -> PipelineStep:
         mod = ALGO_MODULES[self.algo]
         if self.method not in mod.METHODS:
             raise ValueError(

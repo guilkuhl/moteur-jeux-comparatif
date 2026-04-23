@@ -6,9 +6,9 @@ quand True, les pixels classés comme fond (via bgdetect.compute_bg_mask)
 sont réinjectés à l'original après traitement.
 """
 
-from PIL import Image
-import numpy as np
 import cv2
+import numpy as np
+from PIL import Image
 
 from . import bgdetect
 

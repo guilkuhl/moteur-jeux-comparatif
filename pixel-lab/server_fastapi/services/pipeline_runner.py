@@ -1,12 +1,12 @@
 """Exécution synchrone d'un job multi-images × multi-étapes (appelée dans un thread)."""
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
-
 from apply_step import run_step  # type: ignore[import-not-found]
+from PIL import Image
 
 from ..deps import INPUTS_DIR, OUTPUTS_DIR, resolve_input
 from . import history_store
@@ -29,10 +29,9 @@ def run_job(job_id: str, payload: dict[str, Any]) -> None:
             source_copy = out_dir / "source.png"
             if not source_copy.exists() and last_input.exists():
                 out_dir.mkdir(parents=True, exist_ok=True)
-                try:
+                # non bloquant : un source.png manquant n'empêche pas le pipeline
+                with contextlib.suppress(Exception):
                     Image.open(last_input).save(source_copy)
-                except Exception:
-                    pass  # non bloquant
 
             img_entries: list[dict[str, Any]] = []
 

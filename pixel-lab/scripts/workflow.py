@@ -18,23 +18,23 @@ Usage :
 ⚠️  Pixel Art Snap (skill Claude) n'est pas inclus — c'est un outil externe à lancer séparément.
 """
 
-import sys
-import json
 import argparse
+import json
+import sys
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from PIL import Image
-import numpy as np
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(Path(__file__).parent))
 
-from diagnose import diagnose, print_report, build_recommendations
-from algorithms import sharpen     as sharpen_mod
-from algorithms import scale2x     as scale2x_mod
-from algorithms import denoise     as denoise_mod
-from algorithms import pixelsnap   as pixelsnap_mod
+from algorithms import denoise as denoise_mod
+from algorithms import pixelsnap as pixelsnap_mod
+from algorithms import scale2x as scale2x_mod
+from algorithms import sharpen as sharpen_mod
+from diagnose import diagnose, print_report
 
 HISTORY_FILE = ROOT / "history.json"
 OUTPUTS_DIR  = ROOT / "outputs"
@@ -263,7 +263,7 @@ def run_workflow(src: Path, dry_run: bool, force: bool, scale: int, only: list[s
     print(f"  {bold('Résultat final :')} {outputs[-1].relative_to(ROOT)}")
     print(f"  {bold('Dashboard     :')} ouvre dashboard/index.html")
     print(f"\n  {warn('⚠️  Pixel Art Snap')} : skill Claude externe — à lancer séparément")
-    print(f"     si tu veux la quantification de palette et l'export SVG.")
+    print("     si tu veux la quantification de palette et l'export SVG.")
     print(f"{bold(C + bar + RESET)}\n")
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@ import asyncio
 import logging
 import os
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -34,11 +36,18 @@ logger = logging.getLogger("pixel_lab")
 logger.setLevel(os.environ.get("PIXEL_LAB_LOG_LEVEL", "INFO"))
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    job_store.bind_loop(asyncio.get_running_loop())
+    yield
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Pixel Lab API",
         version=__version__,
         description="Atelier pixel-art — conversion, preview live, bgmask, spritesheet, autotile.",
+        lifespan=_lifespan,
     )
 
     # CORS : dev front sur :5173, prod sur :5500 même origine. Jamais allow_origins=["*"].
@@ -82,10 +91,6 @@ def create_app() -> FastAPI:
             status_code=422,
             content={"errors": jsonable_encoder(exc.errors()), "request_id": rid},
         )
-
-    @app.on_event("startup")
-    async def _bind_loop() -> None:
-        job_store.bind_loop(asyncio.get_running_loop())
 
     @app.get("/healthz", response_model=HealthzResponse, tags=["meta"])
     def healthz() -> HealthzResponse:

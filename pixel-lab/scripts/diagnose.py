@@ -17,14 +17,15 @@ Indicateurs mesurés :
     • Résolution effective (ratio pixels identiques entre voisins)
 """
 
-import sys
-import json
 import argparse
-import numpy as np
-import cv2
-from PIL import Image
-from pathlib import Path
+import json
+import sys
 from datetime import datetime
+from pathlib import Path
+
+import cv2
+import numpy as np
+from PIL import Image
 
 ROOT = Path(__file__).parent.parent
 
@@ -199,8 +200,8 @@ def measure_resolution_block(img: Image.Image) -> dict:
     if not runs:
         return {"pixel_size": 1, "level": "indéterminé"}
 
-    from math import gcd
     from functools import reduce
+    from math import gcd
     g = reduce(gcd, runs)
     g = min(g, 8)  # cap raisonnable
 
@@ -342,7 +343,7 @@ def print_report(img_path: Path, img: Image.Image, metrics: dict, recs: list):
         print(f"  {icon} {c(name.ljust(22), verdict)}  {detail.ljust(22)}  {c(level, verdict)}")
 
     print(f"\n{'─'*54}")
-    print(f"  💡 RECOMMANDATIONS\n")
+    print("  💡 RECOMMANDATIONS\n")
     for r in recs:
         if r["algo"] is None:
             print(f"  {r['reason']}")
@@ -421,7 +422,7 @@ def main():
             "recommendations": [r["algo"] for r in result["recommendations"] if r["algo"]],
         }
         hist_path.write_text(json.dumps(history, indent=2, ensure_ascii=False))
-        print(f"[saved] Diagnostic enregistré dans history.json")
+        print("[saved] Diagnostic enregistré dans history.json")
 
 
 if __name__ == "__main__":

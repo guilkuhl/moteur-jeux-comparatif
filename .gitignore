@@ -2,9 +2,14 @@ node_modules/
 godot-benchmark/android/
 godot-benchmark/build/
 
-# Python bytecode
+# Python bytecode et caches de tooling
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # pixel-lab runtime archives (suppression utilisateur)
 pixel-lab/inputs/_trash/

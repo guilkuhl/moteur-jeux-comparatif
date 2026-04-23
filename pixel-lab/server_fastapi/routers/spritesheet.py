@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from PIL import Image
 
 from ..deps import INPUTS_DIR, OUTPUTS_DIR, safe_name
@@ -154,11 +154,13 @@ async def constraints_validate(request: Request) -> dict:
             if (cx, cy) in ignore_set:
                 continue
             w, h = cell_dims(cx, cy)
-            if mul_n and isinstance(mul_n, int) and mul_n > 0:
-                if w % mul_n != 0 or h % mul_n != 0:
-                    sugg_w = ((w + mul_n - 1) // mul_n) * mul_n
-                    sugg_h = ((h + mul_n - 1) // mul_n) * mul_n
-                    violations.append({
+            if (
+                mul_n and isinstance(mul_n, int) and mul_n > 0
+                and (w % mul_n != 0 or h % mul_n != 0)
+            ):
+                sugg_w = ((w + mul_n - 1) // mul_n) * mul_n
+                sugg_h = ((h + mul_n - 1) // mul_n) * mul_n
+                violations.append({
                         "cellX": cx, "cellY": cy,
                         "issue": f"{w}x{h} non multiple de {mul_n}",
                         "suggestion": f"padder à {sugg_w}x{sugg_h} ou rogner à {w - w % mul_n}x{h - h % mul_n}",
@@ -204,7 +206,6 @@ def _build_frames(grid: dict, template: str, options: dict) -> list[dict]:
 
     frames: list[dict] = []
     used_names: set[str] = set()
-    idx = 0
     order_map = {(o["cellX"], o["cellY"]): o.get("value", 0) for o in overrides if o.get("type") == "order"}
     cells: list[tuple[int, int]] = []
     for cy in range(rows):
@@ -215,7 +216,7 @@ def _build_frames(grid: dict, template: str, options: dict) -> list[dict]:
     if order_map:
         cells.sort(key=lambda p: (order_map.get(p, 1e9), p[1], p[0]))
 
-    for cx, cy in cells:
+    for idx, (cx, cy) in enumerate(cells):
         merge = find(cx, cy, "merge")
         resize = find(cx, cy, "resize")
         w = cellW * (merge["w"] if merge else 1) + gapX * ((merge["w"] if merge else 1) - 1)
@@ -243,7 +244,6 @@ def _build_frames(grid: dict, template: str, options: dict) -> list[dict]:
         if pivot and options.get("pivot"):
             frame["pivot"] = {"x": pivot.get("x", 0.5), "y": pivot.get("y", 0.5)}
         frames.append(frame)
-        idx += 1
     return frames
 
 

@@ -22,22 +22,24 @@ Algos disponibles :
 Après chaque run, ouvrir dashboard/index.html pour comparer les itérations.
 """
 
-import sys
-import os
-import json
 import argparse
+import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
 from PIL import Image
 
 # Ajouter le dossier scripts au path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(Path(__file__).parent))
 
-from algorithms import sharpen as sharpen_mod
-from algorithms import scale2x as scale2x_mod
+import contextlib
+
 from algorithms import denoise as denoise_mod
 from algorithms import pixelsnap as pixelsnap_mod
+from algorithms import scale2x as scale2x_mod
+from algorithms import sharpen as sharpen_mod
 from apply_step import run_step as _run_step_shared
 
 HISTORY_FILE = ROOT / "history.json"
@@ -56,7 +58,7 @@ ALGO_MAP = {
 
 def load_history() -> dict:
     if HISTORY_FILE.exists():
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
@@ -83,10 +85,8 @@ def parse_params(raw: list[str]) -> dict:
             try:
                 v = int(v)
             except ValueError:
-                try:
+                with contextlib.suppress(ValueError):
                     v = float(v)
-                except ValueError:
-                    pass
             params[k] = v
     return params
 
@@ -218,7 +218,7 @@ def main():
     history[image_name]["runs"].append(run_entry)
     save_history(history)
     print(f"[history] Itération #{iter_idx} enregistrée dans history.json")
-    print(f"\n✓ Ouvre dashboard/index.html pour comparer les résultats.")
+    print("\n✓ Ouvre dashboard/index.html pour comparer les résultats.")
 
 
 if __name__ == "__main__":

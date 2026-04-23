@@ -6,8 +6,8 @@ Algorithmes de pixel-art upscaling sans flou.
 - eagle    : Eagle2x
 """
 
-from PIL import Image
 import numpy as np
+from PIL import Image
 
 
 def nearest(img: Image.Image, scale: int = 2) -> Image.Image:

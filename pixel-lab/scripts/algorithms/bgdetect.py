@@ -14,13 +14,11 @@ Expose aussi METHODS et PARAMS pour intégration CLI/API standard.
 from __future__ import annotations
 
 from collections import deque
-from typing import Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageFilter
 
-
-RGB = Tuple[int, int, int]
+RGB = tuple[int, int, int]
 
 
 def _to_rgb_array(img: Image.Image) -> np.ndarray:
@@ -38,7 +36,7 @@ def _color_match(a: np.ndarray, b: np.ndarray, tol: int) -> np.ndarray:
     return (diff.max(axis=-1) <= tol)
 
 
-def detect_bg_color(img: Image.Image, tolerance: int = 8) -> Optional[RGB]:
+def detect_bg_color(img: Image.Image, tolerance: int = 8) -> RGB | None:
     """Lit les 4 pixels de coin, retourne la couleur de fond si ≥3 coins sont égaux
     (distance L∞ ≤ tolerance), sinon None."""
     arr = _to_rgb_array(img)
@@ -103,7 +101,7 @@ def _flood_fill_from_edges(arr: np.ndarray, bg_color: RGB, tolerance: int) -> np
 
 def compute_bg_mask(
     img: Image.Image,
-    bg_color: Optional[RGB] = None,
+    bg_color: RGB | None = None,
     tolerance: int = 8,
     feather: int = 0,
 ) -> np.ndarray:

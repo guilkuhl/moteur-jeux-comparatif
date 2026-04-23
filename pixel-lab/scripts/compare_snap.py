@@ -20,22 +20,23 @@ Usage :
     py scripts/compare_snap.py inputs/fireball.png --only pixelsnap
 """
 
-import sys
-import json
 import argparse
-from pathlib import Path
-from datetime import datetime
-from PIL import Image
+import json
+import sys
 import traceback
+from datetime import datetime
+from pathlib import Path
+
+from PIL import Image
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(Path(__file__).parent))
 
-from algorithms import sharpen   as sharpen_mod
-from algorithms import denoise   as denoise_mod
-from algorithms import scale2x   as scale2x_mod
+from algorithms import denoise as denoise_mod
 from algorithms import pixelsnap as pixelsnap_mod
-from diagnose import diagnose, build_recommendations
+from algorithms import scale2x as scale2x_mod
+from algorithms import sharpen as sharpen_mod
+from diagnose import build_recommendations, diagnose
 
 HISTORY_FILE = ROOT / "history.json"
 OUTPUTS_DIR  = ROOT / "outputs"
@@ -69,9 +70,7 @@ def normalize_img(img: Image.Image) -> Image.Image:
         img = img.convert("RGBA" if img.info.get("transparency") is not None else "RGB")
     elif img.mode == "LA":
         img = img.convert("RGBA")
-    elif img.mode == "L":
-        img = img.convert("RGB")
-    elif img.mode not in ("RGB", "RGBA"):
+    elif img.mode == "L" or img.mode not in ("RGB", "RGBA"):
         img = img.convert("RGB")
     # Downgrade 16-bit → 8-bit si nécessaire
     import numpy as np

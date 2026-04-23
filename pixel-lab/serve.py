@@ -21,6 +21,7 @@ Installation prod :
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import webbrowser
@@ -63,10 +64,8 @@ def _run_uvicorn(bind: str = "127.0.0.1:5500", *, reload: bool = True) -> None:
     url = f"http://{host}:{port}/"
     print(f"[serve] uvicorn {'(reload)' if reload else ''} → {url}")
     if not reload and os.environ.get("PIXEL_LAB_NO_BROWSER") != "1":
-        try:
+        with contextlib.suppress(Exception):
             webbrowser.open(url)
-        except Exception:
-            pass
     uvicorn.run(
         "server_fastapi.main:app",
         host=host,
