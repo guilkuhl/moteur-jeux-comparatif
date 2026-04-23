@@ -75,7 +75,7 @@ function onChangeMethod(i: number, newAlgo: Algo, newMethod: string) {
           >
             <option v-for="m in methodsFor(step.algo)" :key="m" :value="m">{{ m }}</option>
           </select>
-          <button class="danger" @click="pipeline.removeStep(i)" :aria-label="`Supprimer étape ${i + 1}`">×</button>
+          <button class="danger" :aria-label="`Supprimer étape ${i + 1}`" @click="pipeline.removeStep(i)">×</button>
         </div>
         <div v-if="paramsFor(step.algo, step.method).length" class="params">
           <label v-for="p in paramsFor(step.algo, step.method)" :key="p.name" class="param">
@@ -100,7 +100,7 @@ function onChangeMethod(i: number, newAlgo: Algo, newMethod: string) {
       </div>
     </div>
     <div class="toolbar">
-      <button @click="onAddStep" :disabled="algoNames.length === 0">+ Ajouter étape</button>
+      <button :disabled="algoNames.length === 0" @click="onAddStep">+ Ajouter étape</button>
       <div class="spacer" />
       <button
         type="button"

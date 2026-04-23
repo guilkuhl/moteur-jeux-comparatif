@@ -218,7 +218,7 @@ function onDividerDown(ev: PointerEvent) {
       </div>
     </div>
 
-    <div v-else-if="mode === 'split'" class="split-root" ref="splitEl" @mousemove="pickAt" @mouseleave="sample = null">
+    <div v-else-if="mode === 'split'" ref="splitEl" class="split-root" @mousemove="pickAt" @mouseleave="sample = null">
       <img v-if="sourceUrl" class="split-img" :src="sourceUrl" alt="source" />
       <img
         v-if="preview.lastUrl"
@@ -231,9 +231,9 @@ function onDividerDown(ev: PointerEvent) {
         v-if="sourceUrl && preview.lastUrl"
         class="divider"
         :style="{ left: `${splitPos * 100}%` }"
-        @pointerdown="onDividerDown"
         role="separator"
         aria-orientation="vertical"
+        @pointerdown="onDividerDown"
       />
       <p v-if="!sourceUrl" class="muted centered">Aucune image sélectionnée</p>
       <p v-else-if="!preview.lastUrl" class="muted centered">Preview non disponible — active live preview ou construis un pipeline.</p>
