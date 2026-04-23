@@ -10,6 +10,9 @@ __pycache__/
 pixel-lab/inputs/_trash/
 pixel-lab/outputs/_trash/
 
+# pixel-lab artefact de build front (généré par `npm run build`)
+pixel-lab/frontend-dist/
+
 # Claude Code local settings
 .claude/settings.local.json
 

@@ -91,6 +91,12 @@ def create_app() -> FastAPI:
     def healthz() -> HealthzResponse:
         return HealthzResponse(status="ok", version=__version__)
 
+    # Dossiers statiques utilisateur : `inputs/` et `outputs/` (lecture seule via
+    # StaticFiles). Le front référence `/inputs/<nom>` pour afficher la source et
+    # `/outputs/<stem>/<iter>.png` pour les itérations produites.
+    app.mount("/inputs", StaticFiles(directory=str(ROOT / "inputs"), check_dir=False), name="inputs")
+    app.mount("/outputs", StaticFiles(directory=str(ROOT / "outputs"), check_dir=False), name="outputs")
+
     # Routers API
     app.include_router(convert.router)
     app.include_router(preview.router)
@@ -102,19 +108,19 @@ def create_app() -> FastAPI:
     app.include_router(autotile.router)
     app.include_router(history.router)
 
-    # Redirect racine → dashboard (transition : si frontend-dist existe, on sert la SPA ;
-    # sinon fallback sur l'ancien dashboard/index.html tant que migrate-front-vue-spa
-    # n'est pas appliquée).
+    # SPA Vue buildée : montée en dernier (routes `/api/*` et `/inputs/*` matchent avant).
+    # En dev, le front tourne séparément via `npm run dev` sur :5173 avec proxy /api → :5500.
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="spa")
-    elif (ROOT / "dashboard").exists():
-        app.mount("/dashboard", StaticFiles(directory=str(ROOT / "dashboard"), html=True),
-                  name="legacy-dashboard")
-
+    else:
         @app.get("/", include_in_schema=False)
-        def _root_redirect():
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url="/dashboard/index.html")
+        def _no_spa() -> dict:
+            return {
+                "message": (
+                    "frontend-dist/ introuvable. Build le front : "
+                    "`cd pixel-lab/frontend && npm ci && npm run build && cp -r dist ../frontend-dist`."
+                ),
+            }
 
     return app
 
