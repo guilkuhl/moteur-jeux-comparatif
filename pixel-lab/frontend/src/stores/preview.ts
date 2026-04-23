@@ -5,7 +5,7 @@ import type { PipelineStep } from '@/types/api';
 
 export type PreviewStatus = 'idle' | 'inflight' | 'ready' | 'error';
 
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 250;
 
 export const usePreviewStore = defineStore('preview', () => {
   const liveMode = ref(false);
@@ -17,6 +17,7 @@ export const usePreviewStore = defineStore('preview', () => {
 
   let currentCtrl: AbortController | null = null;
   let debounceTimer: number | null = null;
+  let requestSeq = 0;
 
   function revokeCurrent(): void {
     if (lastUrl.value) {
@@ -54,6 +55,8 @@ export const usePreviewStore = defineStore('preview', () => {
       status.value = 'idle';
       return;
     }
+    requestSeq += 1;
+    const mySeq = requestSeq;
     currentCtrl?.abort();
     const ctrl = new AbortController();
     currentCtrl = ctrl;
@@ -70,7 +73,7 @@ export const usePreviewStore = defineStore('preview', () => {
         },
         ctrl.signal,
       );
-      if (ctrl !== currentCtrl) return;
+      if (mySeq !== requestSeq) return;
       revokeCurrent();
       lastUrl.value = URL.createObjectURL(result.blob);
       lastMeta.value = {
@@ -81,6 +84,7 @@ export const usePreviewStore = defineStore('preview', () => {
       };
       status.value = 'ready';
     } catch (e) {
+      if (mySeq !== requestSeq) return;
       if (e instanceof DOMException && e.name === 'AbortError') return;
       status.value = 'error';
       errorMsg.value = e instanceof Error ? e.message : String(e);

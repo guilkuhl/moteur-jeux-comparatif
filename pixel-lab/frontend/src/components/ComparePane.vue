@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useImagesStore } from '@/stores/images';
 import { usePreviewStore } from '@/stores/preview';
+import DiffWorker from '@/workers/diff.worker?worker';
+import type { DiffResponse } from '@/workers/diff.worker';
 
 type CompareMode = 'side' | 'split' | 'diff';
 
@@ -37,23 +39,36 @@ const srcCanvas = ref<HTMLCanvasElement | null>(null);
 const prevCanvas = ref<HTMLCanvasElement | null>(null);
 const diffCanvas = ref<HTMLCanvasElement | null>(null);
 const diffUrl = ref<string | null>(null);
+const diffInflight = ref(false);
 
-function loadIntoCanvas(url: string): Promise<HTMLCanvasElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
-      const ctx = c.getContext('2d');
-      if (!ctx) return resolve(null);
-      ctx.drawImage(img, 0, 0);
-      resolve(c);
-    };
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
+let loadSeq = 0;
+let diffSeq = 0;
+let worker: Worker | null = null;
+
+function ensureWorker(): Worker {
+  if (!worker) worker = new DiffWorker();
+  return worker;
+}
+
+function loadIntoCanvas(
+  url: string,
+  mySeq: number,
+  setter: (c: HTMLCanvasElement | null) => void,
+): void {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    if (mySeq !== loadSeq) return;
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    if (!ctx) { setter(null); return; }
+    ctx.drawImage(img, 0, 0);
+    setter(c);
+  };
+  img.onerror = () => { if (mySeq === loadSeq) setter(null); };
+  img.src = url;
 }
 
 function revokeDiff() {
@@ -63,55 +78,93 @@ function revokeDiff() {
   }
 }
 
+function postDiffToWorker(
+  w: Worker,
+  seq: number,
+  width: number,
+  height: number,
+  srcBuf: ArrayBuffer,
+  prevBuf: ArrayBuffer,
+): Promise<DiffResponse> {
+  return new Promise((resolve) => {
+    const onMessage = (ev: MessageEvent<DiffResponse>) => {
+      if (ev.data.seq !== seq) return;
+      w.removeEventListener('message', onMessage);
+      resolve(ev.data);
+    };
+    w.addEventListener('message', onMessage);
+    w.postMessage({ seq, width, height, srcBuf, prevBuf }, [srcBuf, prevBuf]);
+  });
+}
+
 async function buildDiff(): Promise<void> {
-  revokeDiff();
   const a = srcCanvas.value;
   const b = prevCanvas.value;
   if (!a || !b) return;
   const w = Math.min(a.width, b.width);
   const h = Math.min(a.height, b.height);
   if (w === 0 || h === 0) return;
+  const aCtx = a.getContext('2d');
+  const bCtx = b.getContext('2d');
+  if (!aCtx || !bCtx) return;
+  const aData = aCtx.getImageData(0, 0, w, h);
+  const bData = bCtx.getImageData(0, 0, w, h);
+
+  diffSeq += 1;
+  const mySeq = diffSeq;
+  diffInflight.value = true;
+
+  // Copie les pixels avant transfert : .data.buffer appartient au canvas,
+  // non transférable. Le coût de copie (≈1 ms/MB) est négligeable vs le gain
+  // sur le main thread.
+  const srcBuf = new Uint8ClampedArray(aData.data).buffer;
+  const prevBuf = new Uint8ClampedArray(bData.data).buffer;
+
+  const res = await postDiffToWorker(ensureWorker(), mySeq, w, h, srcBuf, prevBuf);
+  if (res.seq !== diffSeq) {
+    diffInflight.value = false;
+    return;
+  }
+
   const out = document.createElement('canvas');
   out.width = w; out.height = h;
   const ctx = out.getContext('2d');
-  if (!ctx) return;
-  const aData = a.getContext('2d')?.getImageData(0, 0, w, h);
-  const bData = b.getContext('2d')?.getImageData(0, 0, w, h);
-  if (!aData || !bData) return;
-  const diff = ctx.createImageData(w, h);
-  for (let i = 0; i < diff.data.length; i += 4) {
-    const dr = Math.abs((aData.data[i] ?? 0) - (bData.data[i] ?? 0));
-    const dg = Math.abs((aData.data[i + 1] ?? 0) - (bData.data[i + 1] ?? 0));
-    const db = Math.abs((aData.data[i + 2] ?? 0) - (bData.data[i + 2] ?? 0));
-    const m = Math.max(dr, dg, db);
-    // Rouge proportionnel à la différence, sur fond noir
-    diff.data[i] = m;
-    diff.data[i + 1] = 0;
-    diff.data[i + 2] = 0;
-    diff.data[i + 3] = 255;
-  }
-  ctx.putImageData(diff, 0, 0);
+  if (!ctx) { diffInflight.value = false; return; }
+  ctx.putImageData(
+    new ImageData(new Uint8ClampedArray(res.diffBuf), w, h),
+    0, 0,
+  );
+  revokeDiff();
   diffCanvas.value = out;
   out.toBlob((blob) => {
+    if (mySeq !== diffSeq) return;
     if (blob) diffUrl.value = URL.createObjectURL(blob);
+    diffInflight.value = false;
   });
 }
 
 watch(
   [sourceUrl, () => preview.lastUrl],
-  async ([src, prev]) => {
-    srcCanvas.value = src ? await loadIntoCanvas(src) : null;
-    prevCanvas.value = prev ? await loadIntoCanvas(prev) : null;
-    if (mode.value === 'diff') await buildDiff();
+  ([src, prev]) => {
+    loadSeq += 1;
+    const seq = loadSeq;
+    if (src) loadIntoCanvas(src, seq, (c) => { if (seq === loadSeq) srcCanvas.value = c; });
+    else srcCanvas.value = null;
+    if (prev) loadIntoCanvas(prev, seq, (c) => { if (seq === loadSeq) prevCanvas.value = c; });
+    else prevCanvas.value = null;
   },
   { immediate: true },
 );
 
-watch(mode, async (m) => {
-  if (m === 'diff') await buildDiff();
+watch([srcCanvas, prevCanvas, mode], ([, , m]) => {
+  if (m === 'diff') void buildDiff();
 });
 
-onBeforeUnmount(() => revokeDiff());
+onBeforeUnmount(() => {
+  revokeDiff();
+  worker?.terminate();
+  worker = null;
+});
 
 // Pipette -------------------------------------------------------------------
 
@@ -241,7 +294,9 @@ function onDividerDown(ev: PointerEvent) {
 
     <div v-else class="diff-root" @mousemove="pickAt" @mouseleave="sample = null">
       <img v-if="diffUrl" class="split-img" :src="diffUrl" alt="diff source / preview" />
+      <p v-else-if="diffInflight" class="muted centered">calcul diff…</p>
       <p v-else class="muted centered">Source et preview requis pour calculer la différence.</p>
+      <p v-if="diffInflight && diffUrl" class="muted inflight-badge">calcul diff…</p>
     </div>
   </section>
 </template>
@@ -281,5 +336,11 @@ function onDividerDown(ev: PointerEvent) {
 
 .muted { color: var(--muted); font-size: 13px; }
 .centered { position: absolute; inset: 0; display: grid; place-items: center; }
+.inflight-badge {
+  position: absolute; top: 8px; right: 8px;
+  padding: 2px 8px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  font-size: 11px; pointer-events: none;
+}
 .err { color: var(--red); }
 </style>

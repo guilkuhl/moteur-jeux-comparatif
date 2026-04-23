@@ -93,7 +93,7 @@ function onChangeMethod(i: number, newAlgo: Algo, newMethod: string) {
               :max="p.max"
               :step="p.type === 'int' ? 1 : 0.1"
               :value="step.params[p.name] ?? p.default"
-              @input="pipeline.updateParam(i, p.name, Number(($event.target as HTMLInputElement).value))"
+              @change="pipeline.updateParam(i, p.name, Number(($event.target as HTMLInputElement).value))"
             />
           </label>
         </div>

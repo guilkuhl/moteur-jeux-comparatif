@@ -47,4 +47,4 @@ class PreviewCache:
                 self._store.popitem(last=False)
 
 
-preview_cache = PreviewCache(max_size=32)
+preview_cache = PreviewCache(max_size=128)

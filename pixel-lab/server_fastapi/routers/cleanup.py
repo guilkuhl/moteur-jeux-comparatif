@@ -1,6 +1,7 @@
 """Routes /api/cleanup/* — duplicates, subpixel, normalize, report."""
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 from collections import Counter
@@ -65,13 +66,7 @@ def _phase_correlate(a: Image.Image, b: Image.Image) -> tuple[float, float]:
     return (float(dx) + sx, float(dy) + sy)
 
 
-@router.post("/detect-duplicates")
-async def detect_duplicates(request: Request) -> dict:
-    payload = await request.json()
-    image_name = payload.get("image")
-    threshold = int(payload.get("similarity_threshold", 5))
-    if not image_name or not safe_name(image_name):
-        raise HTTPException(status_code=400, detail="bad_image")
+def _compute_duplicates(image_name: str, threshold: int) -> dict:
     img, frames, _ = iter_cells(image_name)
     if img is None:
         raise HTTPException(status_code=400, detail="no_slicing")
@@ -92,12 +87,17 @@ async def detect_duplicates(request: Request) -> dict:
     return {"pairs": pairs, "threshold": threshold}
 
 
-@router.post("/detect-subpixel")
-async def detect_subpixel(request: Request) -> dict:
+@router.post("/detect-duplicates")
+async def detect_duplicates(request: Request) -> dict:
     payload = await request.json()
     image_name = payload.get("image")
+    threshold = int(payload.get("similarity_threshold", 5))
     if not image_name or not safe_name(image_name):
         raise HTTPException(status_code=400, detail="bad_image")
+    return await asyncio.to_thread(_compute_duplicates, image_name, threshold)
+
+
+def _compute_subpixel(image_name: str) -> dict:
     img, frames, _ = iter_cells(image_name)
     if img is None:
         raise HTTPException(status_code=400, detail="no_slicing")
@@ -119,13 +119,16 @@ async def detect_subpixel(request: Request) -> dict:
     return {"shifts": shifts}
 
 
-@router.post("/normalize")
-async def normalize(request: Request) -> dict:
+@router.post("/detect-subpixel")
+async def detect_subpixel(request: Request) -> dict:
     payload = await request.json()
     image_name = payload.get("image")
-    alignment = payload.get("alignment", "center")
     if not image_name or not safe_name(image_name):
         raise HTTPException(status_code=400, detail="bad_image")
+    return await asyncio.to_thread(_compute_subpixel, image_name)
+
+
+def _compute_normalize(image_name: str, alignment: str) -> dict:
     img, frames, grid = iter_cells(image_name)
     if img is None:
         raise HTTPException(status_code=400, detail="no_slicing")
@@ -168,6 +171,16 @@ async def normalize(request: Request) -> dict:
         "dimensions": [out_w, out_h],
         "cellSize": [maxW, maxH],
     }
+
+
+@router.post("/normalize")
+async def normalize(request: Request) -> dict:
+    payload = await request.json()
+    image_name = payload.get("image")
+    alignment = payload.get("alignment", "center")
+    if not image_name or not safe_name(image_name):
+        raise HTTPException(status_code=400, detail="bad_image")
+    return await asyncio.to_thread(_compute_normalize, image_name, alignment)
 
 
 @router.get("/report")
