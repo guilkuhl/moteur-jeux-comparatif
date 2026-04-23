@@ -139,7 +139,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
   if (mod && e.key.toLowerCase() === 'k') {
     e.preventDefault();
-    open.value ? hide() : show();
+    if (open.value) { hide(); } else { show(); }
     return;
   }
   if (!open.value) return;
