@@ -8,6 +8,7 @@ import type {
   Preset,
   PreviewRequest,
   PreviewResult,
+  ServerCapabilities,
 } from '@/types/api';
 import { parseApiError } from './errors';
 
@@ -65,6 +66,10 @@ export const api = {
       elapsedMs: n('X-Elapsed-Ms'),
       cacheHitDepth: n('X-Cache-Hit-Depth'),
     };
+  },
+
+  async getCapabilities(): Promise<ServerCapabilities> {
+    return jsonFetch<ServerCapabilities>('/api/capabilities');
   },
 
   async listPresets(): Promise<Preset[]> {

@@ -25,12 +25,14 @@ export interface PipelineStep {
 export interface ConvertRequest {
   images: string[];
   pipeline: PipelineStep[];
+  use_gpu?: boolean;
 }
 
 export interface PreviewRequest {
   image: string;
   pipeline: PipelineStep[];
   downscale: number | null;
+  use_gpu?: boolean;
 }
 
 export interface PreviewResult {
@@ -67,4 +69,14 @@ export interface Preset {
   name: string;
   pipeline: PipelineStep[];
   updated_at: string;
+}
+
+export interface GpuCapabilities {
+  available: boolean;
+  device_count: number;
+  device_name: string | null;
+}
+
+export interface ServerCapabilities {
+  gpu: GpuCapabilities;
 }

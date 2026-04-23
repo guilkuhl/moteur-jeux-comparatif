@@ -19,6 +19,7 @@ from .deps import FRONTEND_DIST, ROOT
 from .routers import (
     autotile,
     bgmask,
+    capabilities,
     cleanup,
     convert,
     history,
@@ -114,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(autotile.router)
     app.include_router(history.router)
     app.include_router(presets.router)
+    app.include_router(capabilities.router)
 
     # SPA Vue buildée : montée en dernier (routes `/api/*` et `/inputs/*` matchent avant).
     # En dev, le front tourne séparément via `npm run dev` sur :5173 avec proxy /api → :5500.

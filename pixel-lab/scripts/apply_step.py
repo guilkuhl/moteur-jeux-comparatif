@@ -13,6 +13,7 @@ Source unique de vérité pour :
 
 from __future__ import annotations
 
+import inspect
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -95,6 +96,13 @@ def _next_iter_index(dst_dir: Path) -> int:
     return max_idx + 1
 
 
+def _supports_kwarg(fn: Any, kwarg: str) -> bool:
+    try:
+        return kwarg in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def run_step(
     src_path: Path,
     algo: str,
@@ -103,12 +111,16 @@ def run_step(
     dst_dir: Path,
     *,
     name_override: str | None = None,
+    use_gpu: bool = False,
 ) -> tuple[Path, dict]:
     """Charge `src_path`, applique `algo/method(**params)`, écrit
     `iter_NNN_<algo>_<method>.png` dans `dst_dir`, renvoie `(chemin, entry)`.
 
     `entry` est une entrée prête à être ajoutée dans `history.json[<stem>]["runs"]`,
     sans le champ `source` (laissé au caller, qui connaît le contexte CLI/serveur).
+
+    `use_gpu` est injecté dans `params` uniquement pour les fonctions d'algo qui
+    déclarent ce kwarg dans leur signature (opt-in, pas de propagation aveugle).
     """
     if algo not in ALGO_MODULES:
         raise ValueError(
@@ -123,6 +135,9 @@ def run_step(
 
     typed_params = _cast_params(algo, method, params)
     fn = mod.METHODS[method]
+
+    if use_gpu and _supports_kwarg(fn, "use_gpu") and "use_gpu" not in typed_params:
+        typed_params["use_gpu"] = True
 
     src_path = Path(src_path)
     img = Image.open(src_path).copy()

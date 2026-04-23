@@ -17,6 +17,7 @@ def run_job(job_id: str, payload: dict[str, Any]) -> None:
     """Orchestrateur : boucle sur images × pipeline, écrit iter_NNN_*.png et history.json."""
     images: list[str] = payload["images"]
     pipeline: list[dict[str, Any]] = payload["pipeline"]
+    use_gpu: bool = bool(payload.get("use_gpu", False))
 
     try:
         for img_name in images:
@@ -62,6 +63,7 @@ def run_job(job_id: str, payload: dict[str, Any]) -> None:
                     produced_path, entry = run_step(
                         last_input, algo, method, params, out_dir,
                         name_override=img_stem if step_idx > 0 else None,
+                        use_gpu=use_gpu,
                     )
                 except Exception as e:  # noqa: BLE001
                     job_store.push(job_id, {

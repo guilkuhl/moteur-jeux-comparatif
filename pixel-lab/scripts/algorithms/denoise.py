@@ -6,11 +6,37 @@ quand True, les pixels classés comme fond (via bgdetect.compute_bg_mask)
 sont réinjectés à l'original après traitement.
 """
 
+import logging
+
 import cv2
 import numpy as np
 from PIL import Image
 
 from . import bgdetect
+
+_logger = logging.getLogger("pixel_lab.denoise")
+
+
+def _try_gpu_bilateral(
+    arr: np.ndarray, d: int, sigma_color: float, sigma_space: float
+) -> np.ndarray | None:
+    """Essaye d'exécuter le filtre bilatéral sur GPU. Retourne None si échec."""
+    cuda = getattr(cv2, "cuda", None)
+    if cuda is None:
+        return None
+    try:
+        if cuda.getCudaEnabledDeviceCount() == 0:
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        gpu_mat = cv2.cuda_GpuMat()
+        gpu_mat.upload(arr)
+        gpu_out = cv2.cuda.bilateralFilter(gpu_mat, d, sigma_color, sigma_space)
+        return gpu_out.download()
+    except Exception:  # noqa: BLE001
+        _logger.info("cv2.cuda.bilateralFilter indisponible, fallback CPU", exc_info=True)
+        return None
 
 
 def _maybe_preserve_bg(src: Image.Image, out: Image.Image, preserve_bg: bool) -> Image.Image:
@@ -30,10 +56,25 @@ def median_filter(img: Image.Image, size: int = 3, preserve_bg: bool = False) ->
     return _maybe_preserve_bg(img, out, preserve_bg)
 
 
-def bilateral_filter(img: Image.Image, d: int = 9, sigma_color: float = 75, sigma_space: float = 75, preserve_bg: bool = False) -> Image.Image:
-    """Filtre bilatéral : lisse le bruit tout en préservant les bords nets."""
+def bilateral_filter(
+    img: Image.Image,
+    d: int = 9,
+    sigma_color: float = 75,
+    sigma_space: float = 75,
+    preserve_bg: bool = False,
+    use_gpu: bool = False,
+) -> Image.Image:
+    """Filtre bilatéral : lisse le bruit tout en préservant les bords nets.
+
+    Si `use_gpu=True` et qu'OpenCV a été buildé avec CUDA, tente le chemin
+    `cv2.cuda.bilateralFilter` — sinon fallback CPU silencieux.
+    """
     arr = np.array(img.convert("RGB"))
-    denoised = cv2.bilateralFilter(arr, d, sigma_color, sigma_space)
+    denoised: np.ndarray | None = None
+    if use_gpu:
+        denoised = _try_gpu_bilateral(arr, d, sigma_color, sigma_space)
+    if denoised is None:
+        denoised = cv2.bilateralFilter(arr, d, sigma_color, sigma_space)
     result = Image.fromarray(denoised)
     if img.mode != "RGB":
         result = result.convert(img.mode)
