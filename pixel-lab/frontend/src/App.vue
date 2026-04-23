@@ -4,8 +4,10 @@ import Sidebar from '@/components/Sidebar.vue';
 import ComparePane from '@/components/ComparePane.vue';
 import ConvertPanel from '@/components/ConvertPanel.vue';
 import { usePreviewStore } from '@/stores/preview';
+import { useThemeStore } from '@/stores/theme';
 
 const preview = usePreviewStore();
+useThemeStore();
 
 // Healthcheck au boot, pour signaler tôt si le back est down
 onMounted(async () => {

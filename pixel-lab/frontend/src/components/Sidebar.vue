@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useImagesStore } from '@/stores/images';
+import { useThemeStore } from '@/stores/theme';
 
 const images = useImagesStore();
+const themeStore = useThemeStore();
 onMounted(() => void images.refresh());
 
 async function onUpload(ev: Event) {
@@ -23,10 +25,21 @@ async function onUpload(ev: Event) {
   <aside class="sidebar">
     <header>
       <h2>Images</h2>
-      <label class="upload-btn">
-        + Upload
-        <input type="file" accept="image/*" @change="onUpload" />
-      </label>
+      <div class="actions">
+        <button
+          type="button"
+          class="theme-toggle"
+          :title="themeStore.theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
+          :aria-label="themeStore.theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'"
+          @click="themeStore.toggle()"
+        >
+          {{ themeStore.theme === 'dark' ? '☀' : '☾' }}
+        </button>
+        <label class="upload-btn">
+          + Upload
+          <input type="file" accept="image/*" @change="onUpload" />
+        </label>
+      </div>
     </header>
     <p v-if="images.error" class="err">{{ images.error }}</p>
     <ul v-if="images.files.length">
@@ -49,8 +62,13 @@ async function onUpload(ev: Event) {
   width: 280px; padding: 12px; border-right: 1px solid var(--border);
   background: var(--panel); overflow-y: auto;
 }
-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
 h2 { margin: 0; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.actions { display: flex; align-items: center; gap: 6px; }
+.theme-toggle {
+  padding: 2px 8px; font-size: 14px; line-height: 1; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+}
 .upload-btn { cursor: pointer; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
 .upload-btn input { display: none; }
 ul { list-style: none; padding: 0; margin: 0; }
