@@ -5,20 +5,32 @@ import asyncio
 import contextlib
 import threading
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
+
+# Cap de la queue par subscriber. Évite qu'un client SSE mort ne fasse croître
+# la mémoire indéfiniment : on drop silencieusement les nouveaux events au-delà.
+SUBSCRIBER_QUEUE_MAX = 1000
 
 
 @dataclass
 class Job:
     job_id: str
-    state: str = "running"  # running | done
+    state: str = "running"  # "running" | "done"
     events: list[dict[str, Any]] = field(default_factory=list)
-    # subscribers : queues asyncio alimentées depuis le thread worker via call_soon_threadsafe
-    subscribers: list[asyncio.Queue] = field(default_factory=list)
+    # subscribers : queues asyncio alimentées depuis le thread worker via
+    # call_soon_threadsafe — jamais put direct depuis un thread non-loop.
+    subscribers: list[asyncio.Queue[dict[str, Any]]] = field(default_factory=list)
 
 
 class JobStore:
+    """Stocke les jobs en mémoire process, sérialise via `threading.Lock`.
+
+    ⚠️ Mémoire process : gunicorn `-w > 1` casserait la garantie « un seul
+    job actif à la fois » — voir `serve.py`.
+    """
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._active: str | None = None
@@ -26,7 +38,7 @@ class JobStore:
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        """Lier le store à la boucle asyncio principale (appelé au startup FastAPI)."""
+        """Lie le store à la boucle asyncio principale (appelé depuis le lifespan FastAPI)."""
         self._loop = loop
 
     def try_start(self) -> Job | None:
@@ -41,14 +53,16 @@ class JobStore:
             return job
 
     def finish(self, job_id: str) -> None:
+        """Marque le job comme `done` et libère le slot actif."""
         with self._lock:
             if self._active == job_id:
                 self._active = None
-            if job_id in self._jobs:
-                self._jobs[job_id].state = "done"
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job.state = "done"
 
     def push(self, job_id: str, event: dict[str, Any]) -> None:
-        """Thread-safe : dispatch l'événement vers tous les subscribers via l'event loop."""
+        """Dispatch thread-safe : persiste l'event puis notifie les subscribers via l'event loop."""
         job = self._jobs.get(job_id)
         if job is None:
             return
@@ -57,19 +71,24 @@ class JobStore:
         if loop is None:
             return
         for q in list(job.subscribers):
+            # call_soon_threadsafe est l'API pont thread → event loop ; on
+            # supprime les RuntimeError possibles si le loop est en shutdown.
             with contextlib.suppress(RuntimeError):
                 loop.call_soon_threadsafe(q.put_nowait, event)
 
     def get(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
 
-    async def subscribe(self, job_id: str):
-        """Async generator qui yield chaque événement jusqu'à réception du `done`."""
+    async def subscribe(self, job_id: str) -> AsyncIterator[dict[str, Any]]:
+        """Async generator qui yield chaque événement jusqu'au `done` (ou disparition du job).
+
+        Les événements déjà présents dans `job.events` sont rejoués en tête —
+        un client qui se connecte après le début du job ne rate aucun event.
+        """
         job = self._jobs.get(job_id)
         if job is None:
             return
-        q: asyncio.Queue = asyncio.Queue(maxsize=1000)
-        # Rejouer les événements déjà reçus (client qui se connecte après le début du job)
+        q: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=SUBSCRIBER_QUEUE_MAX)
         for evt in list(job.events):
             q.put_nowait(evt)
         job.subscribers.append(q)
@@ -78,9 +97,6 @@ class JobStore:
                 evt = await q.get()
                 yield evt
                 if evt.get("type") == "done":
-                    return
-                if job.state == "done" and job.events[-1:] != [evt]:
-                    # sécurité : si le job est marqué done mais on n'a pas reçu l'event
                     return
         finally:
             if q in job.subscribers:

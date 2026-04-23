@@ -33,11 +33,10 @@ source = ["server_fastapi", "scripts/apply_step.py"]
 omit = ["*/tests/*"]
 
 [tool.coverage.report]
-# Barre V1 modeste : les scenarios bout-en-bout viendront dans les suites
-# pytest complètes + tests e2e Playwright. L'objectif est que la CI passe
-# maintenant avec un gate pas ridiculement bas, et qu'on monte la barre
-# progressivement à 60 % au fil des tests ajoutés.
-fail_under = 30
+# La barre est calibrée sur ce que les tests actuels atteignent (~55 %).
+# Les routers autotile/cleanup/spritesheet restent peu testés — à couvrir
+# dans un change dédié « add-spritesheet-tests » ; objectif long terme 70 %.
+fail_under = 50
 exclude_also = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",

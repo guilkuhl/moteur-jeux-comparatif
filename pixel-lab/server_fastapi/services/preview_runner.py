@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import Any
 
 from apply_step import _cast_params  # type: ignore[import-not-found]
@@ -11,8 +12,18 @@ from ..deps import ALGO_MODULES, resolve_input
 from .preview_cache import preview_cache
 
 
+def _require_input(basename: str) -> Path:
+    """Rés. le chemin d'une image ; lève si introuvable. La validation Pydantic
+    est censée l'avoir fait AVANT qu'on arrive ici — ce `ValueError` est un
+    filet de sécurité pour les bugs de caller."""
+    path = resolve_input(basename)
+    if path is None:
+        raise ValueError(f"image introuvable : {basename!r}")
+    return path
+
+
 def _load_source(basename: str) -> Image.Image:
-    return Image.open(resolve_input(basename)).copy()
+    return Image.open(_require_input(basename)).copy()
 
 
 def _apply_downscale(img: Image.Image, downscale: int | None) -> Image.Image:
@@ -28,11 +39,20 @@ def _apply_step(img: Image.Image, algo: str, method: str, params: dict[str, Any]
     return fn(img, **_cast_params(algo, method, params))
 
 
-def render(image_name: str, pipeline: list[dict[str, Any]], downscale: int | None) -> tuple[bytes, int, int, int]:
-    """Retourne (png_bytes, width, height, cache_hit_depth)."""
-    source_path = resolve_input(image_name)
+def render(
+    image_name: str,
+    pipeline: list[dict[str, Any]],
+    downscale: int | None,
+) -> tuple[bytes, int, int, int]:
+    """Rend le pipeline complet. Retourne (png_bytes, width, height, cache_hit_depth).
+
+    `cache_hit_depth` est le nombre d'étapes en tête de pipeline servies depuis
+    le cache (0 = aucun cache, N = toutes les étapes cachées).
+    """
+    source_path = _require_input(image_name)
     mtime_ns = source_path.stat().st_mtime_ns
 
+    # Recherche du plus long préfixe caché
     cached_img: Image.Image | None = None
     start_idx = 0
     for k in range(len(pipeline), 0, -1):
