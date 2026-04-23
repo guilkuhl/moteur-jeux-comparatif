@@ -163,7 +163,69 @@ export function useSSESubscription(jobId: Ref<string | null>) {
 - L'utilisateur actuel a des préférences sauvegardées (`localStorage.getItem('dashLeftOpen')`).
 - Ne pas les casser à la migration.
 
-## Risks / Trade-offs
+## Best Practices (checklist à appliquer pendant l'implémentation)
+
+**Vue 3 / Composition API**
+- **`<script setup lang="ts">` partout** : jamais d'Options API, jamais de `defineComponent({...})` explicite.
+- **`defineProps<T>()` typé par interface TS** (pas de runtime declarations `defineProps({ foo: String })`) pour bénéficier du typage strict.
+- **`defineEmits<{(e: 'update', v: string): void}>()` typé** — idem, pas de string array.
+- **Props readonly** : jamais muter `props.xxx`, passer par `emit('update:xxx', newValue)` + `v-model` parent.
+- **`ref` vs `reactive` vs `shallowRef`** : `ref` par défaut pour primitives + objets simples ; `shallowRef` pour les gros objets qui ne changent qu'en bloc (ex. un blob) ; `reactive` seulement pour des forms complexes, jamais en paramètre d'API.
+- **`computed` pour les dérivations**, pas `watch` + `ref` mutation — `watch` uniquement pour les effets de bord (API call, DOM imperatif).
+- **`v-for` avec `:key` stable** (id, pas index) — règle non négociable.
+- **Jamais `v-html` sur du contenu utilisateur** (XSS).
+- **`onUnmounted` pour tout cleanup** : `EventSource.close()`, `URL.revokeObjectURL`, `AbortController.abort()`, `clearTimeout`, `removeEventListener`. Si un composable crée une ressource, il doit la libérer.
+- **Pas d'accès DOM impératif** (`document.getElementById`, `querySelector`) sauf cas extrême documenté. Utiliser `ref()` + `templateRef` Vue.
+- **Pas d'`any`, pas de `as unknown as T`**. Si un cast est nécessaire, ajouter un commentaire expliquant pourquoi TS ne peut pas inférer.
+
+**Pinia**
+- Style **setup store** (`defineStore('x', () => { ... })`), pas le style Options — meilleur typage TS, plus idiomatique Composition API.
+- **Actions asynchrones renvoient des Promises** (pas de fire-and-forget sans `await`).
+- **Pas de mutation directe du state depuis un composant** : passer par une action.
+- **Pas de dépendance circulaire entre stores** : si `storeA` a besoin de `storeB`, l'injection se fait au niveau du composable ou de l'action, pas en top-level `import`.
+- **`persistedstate` ou équivalent** pour `localStorage` : clés explicites, sérialisation safe (pas de `Blob`, pas de fonctions).
+- **Getters pour les dérivations coûteuses**, pas de computed inline dans chaque composant.
+
+**TypeScript**
+- `tsconfig.json` : `"strict": true`, `"noUncheckedIndexedAccess": true`, `"exactOptionalPropertyTypes": true`, `"noImplicitOverride": true`, `"useUnknownInCatchVariables": true`.
+- **Types discriminés** pour les unions (`type SSEEvent = StepStart | StepDone | ...` avec champ `type` discriminant) + type guards exportés.
+- **Pas de `!` non-null assertion** sauf dans les tests ou avec un commentaire justifiant.
+- **`readonly` et `Readonly<T>`** pour les props/state immuables.
+- **`satisfies`** pour annoter un littéral sans casser son inférence (`const routes = { ... } satisfies Record<string, Route>`).
+
+**Composants**
+- **1 composant = 1 responsabilité**. Si un composant dépasse 200 lignes, découper.
+- **Logique extractible → composable**. Un composable `useXxx` est pur, testable, sans `this`.
+- **CSS scoped** (`<style scoped>`) par défaut, variables CSS globales dans `assets/styles.css`.
+- **Accessibilité** : `<button>` (pas `<div @click>`), labels associés (`<label :for="id">`), `role="dialog"`/`aria-*` sur les modales, navigation clavier (Esc ferme, Tab cycle).
+- **Pas de logique dans les templates** au-delà de ternaire trivial — extraire en `computed`.
+- **`defineAsyncComponent`** pour les panneaux lourds (spritesheet, autotile) — code-splitting Vite automatique.
+
+**Client HTTP**
+- **`AbortController` systématique** : toute requête annulable (preview, bgmask), cleanup au démontage.
+- **Parsing d'erreur centralisé** (`api/errors.ts`) : une fonction `parseApiError(response): Promise<UserFacingError>` qui gère les deux formats (Pydantic + legacy).
+- **Pas de catch silencieux** : `catch (e) {}` est interdit. Soit remonter à l'utilisateur (banner), soit logger + ignorer avec commentaire.
+- **Types de réponse imposés** côté wrapper : un appel API retourne `Promise<T>` typé, jamais `Promise<any>`.
+
+**Outillage / qualité**
+- **ESLint strict** : `plugin:vue/vue3-recommended`, `@typescript-eslint/recommended-strict`, `plugin:vue/vue3-strongly-recommended`.
+- **Prettier** aligné sur ESLint via `eslint-config-prettier`.
+- **Volar** en `takeover mode` (pas d'extension TypeScript VSCode parallèle).
+- **Pre-commit hook** (optionnel, géré dans `add-ci-e2e-tests`) : `lint-staged` lance eslint+prettier sur les fichiers modifiés.
+- **`console.log` interdits en prod** : règle ESLint `no-console` en error (sauf `console.warn`/`console.error` autorisés).
+
+**Performance**
+- **Lazy-loading** des panneaux lourds (`defineAsyncComponent(() => import('./SpritesheetPanel.vue'))`).
+- **`v-show` vs `v-if`** : `v-show` pour toggle fréquent, `v-if` pour contenu conditionnel coûteux.
+- **Virtualisation** si `files[]` dépasse 100 entrées (reporter V2).
+- **Watchers `{ deep: false }`** par défaut, `deep: true` seulement si justifié.
+
+**Sécurité front**
+- **Pas d'`innerHTML`** ni `v-html` avec contenu non contrôlé.
+- **CSP stricte** configurée dans `index.html` : `default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'` (Vite produit du code sans eval).
+- **Pas de secret dans le bundle** (pas de token en dur — il n'y en a pas, mais règle générale).
+
+
 
 - **[Perte du support `file://`]** → l'ancien dashboard s'ouvrait sans serveur en lecture seule. Vue/Vite nécessitent un serveur HTTP (dev ou prod). Mitigation : le README documente clairement. Utilisateur localhost → accès serveur toujours dispo.
 - **[Bundle size vs perf]** → Vue 3 + Pinia runtime ~40 KB gzipped, + app ~150-200 KB. Comparable à l'HTML actuel (167 KB) mais plus de JS à parser. Mitigation : lazy-load des panneaux lourds (spritesheet, autotile) via `defineAsyncComponent`.

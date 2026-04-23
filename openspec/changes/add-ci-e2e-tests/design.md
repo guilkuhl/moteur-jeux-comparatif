@@ -130,7 +130,74 @@ La CI GitHub Actions orchestre ces trois niveaux.
 
 **Pourquoi :** le debug post-échec en CI est critique. Sans artefacts, les échecs deviennent frustrants.
 
-## Risks / Trade-offs
+## Best Practices (checklist à appliquer pendant l'implémentation)
+
+**GitHub Actions workflow**
+- **Pin versions d'actions** : `actions/checkout@v4`, `actions/setup-python@v5`, `actions/setup-node@v4` (SHA de commit pour paranoïa max, tag mineur OK V1).
+- **`permissions:` minimum** au niveau workflow : `contents: read` par défaut, élever uniquement où strictement nécessaire (ex. `packages: write` n'est pas requis).
+- **`concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }`** : un push en écrase un précédent en cours sur la même branche.
+- **`timeout-minutes: 20`** par job pour éviter les workflows zombies.
+- **Caching explicite** : `setup-python` et `setup-node` utilisent `cache:` natif avec `cache-dependency-path` précis ; ne pas utiliser `actions/cache` direct sauf besoin spécifique.
+- **`fail-fast: false`** sur les matrices (même si V1 n'a qu'une dimension) — meilleure visibilité des échecs.
+- **Steps nommées** : chaque `run:` a un `name:` clair (affiché dans l'UI, utile en debug).
+- **Pas de secret en clair** : toujours via `${{ secrets.X }}`. Aucun secret n'est attendu V1, mais règle générale.
+- **`working-directory:`** explicite quand on travaille hors racine (`pixel-lab/frontend`).
+
+**Python / pytest**
+- **`pytest` en mode strict** : `-Werror` pour transformer les warnings en erreurs (attraper les DeprecationWarning).
+- **Fixtures dans `conftest.py`** proches des tests qui les consomment (pas tout en top-level).
+- **Pas de dépendance entre tests** : chaque test reproductible isolément (`pytest -k test_xxx` doit passer seul).
+- **`pytest-asyncio` en mode `auto`** : évite le décorateur `@pytest.mark.asyncio` répétitif.
+- **Factory fixtures** pour les objets complexes (ex. `make_convert_payload(algo="sharpen")`).
+- **Pas de `time.sleep`** en test — `wait_for` + timeout explicite. Si un délai est inévitable, documenter pourquoi.
+- **Couverture HTML uploadée** comme artefact en cas d'échec pour drill-down.
+- **Nommage** : `test_<module>_<behavior>`, et un docstring une ligne décrivant le scenario couvert.
+
+**TypeScript / Vitest**
+- **`happy-dom` ou `jsdom`** explicite dans `vitest.config.ts`, pas de choix implicite.
+- **`@vue/test-utils` `mount()`** pour les composants, `shallowMount()` pour les tests d'intégration légers.
+- **Pas de `wrapper.vm.xxx`** pour accéder au state interne — piloter via DOM/events (plus robuste au refactor).
+- **`vi.fn()`** pour les mocks, `vi.spyOn()` pour observer ; `vi.clearAllMocks()` dans `afterEach` global.
+- **Coverage thresholds par métrique** (lines, statements, functions, branches) — pas juste `lines`.
+- **Pas de `any` dans les tests** — typer les mocks avec `MockedFunction<typeof fn>`.
+
+**Playwright**
+- **Locators sémantiques** : `page.getByRole('button', { name: 'Lancer' })`, `page.getByLabel('Live preview')` — **pas** `page.locator('.btn-primary')` fragile.
+- **`await expect(locator).toHaveText(...)`** : auto-wait intégré, pas de `page.waitForTimeout`.
+- **Un test = un scenario utilisateur complet**, pas une suite micro-interactions.
+- **`test.describe.configure({ mode: 'parallel' })`** par fichier quand possible (tests indépendants).
+- **Traces activées** : `trace: 'on-first-retry'` dans `playwright.config.ts` — léger en CI verte, précieux en debug.
+- **Fixtures de scenario** : un `beforeEach` qui `seedInputs()` + `cleanup()` en `afterEach` pour l'isolation.
+- **Pas de hardcoded ports** : baseURL en variable d'env (`process.env.PIXEL_LAB_URL ?? 'http://127.0.0.1:5500'`).
+- **Retry discipliné** : `retries: 1` en CI (attraper la flakiness vraie), `retries: 0` en local (ne pas masquer les régressions).
+
+**Ruff / ESLint / formatage**
+- **`ruff` remplace `flake8` + `black` + `isort`** — une seule commande.
+- **Règles additionnelles pertinentes** : `B` (bugbear), `SIM` (simplify), `UP` (pyupgrade), `ARG` (unused args), `PTH` (pathlib).
+- **ESLint** : `eslint-plugin-vue` + `@typescript-eslint/eslint-plugin` + `eslint-plugin-import` (ordre imports, pas de cycles).
+- **Prettier** : line-width 100, single quotes JS/TS, double quotes JSX.
+- **Configs committées à la racine du sous-projet** (`pixel-lab/frontend/.eslintrc.cjs`, `pixel-lab/pyproject.toml`) — pas de config user-global.
+
+**Dépendances / supply chain**
+- **`package-lock.json` et `requirements.txt` pinnés** (versions exactes ou caret, pas de `latest`).
+- **`npm ci` en CI** (pas `npm install` — reproductibilité stricte).
+- **`pip install --require-hashes`** idéalement (V2), V1 : pin exact suffit.
+- **Dependabot** hebdomadaire (npm + pip + github-actions).
+- **`npm audit --audit-level=high`** en CI (gate soft V1, hard V2).
+- **Pas de dépendance non nécessaire** : chaque ajout `npm i X` justifié dans le commit message.
+
+**Fixtures et déterminisme**
+- **Seeds fixes** partout (`numpy.random.seed(42)`, `Math.random` remplacé par un générateur seedé dans les tests).
+- **Versions Pillow/NumPy pinnées** dans `requirements.txt` pour garantir la reproductibilité bit-à-bit.
+- **Pas de `datetime.now()` direct** dans le code testé — injecter une horloge (`clock: Callable[[], datetime] = datetime.now`).
+- **Goldens versionnés** avec README expliquant comment régénérer et quelles vérifications visuelles faire avant commit.
+
+**Artefacts / debug**
+- **Naming explicite** : `playwright-report-${{ github.run_id }}`, `coverage-${{ matrix.os }}`.
+- **Retention policy courte** : `retention-days: 14` (default 90 — trop long pour du debug).
+- **Upload conditionnel** : `if: failure() || cancelled()` — pas de bruit sur les runs verts.
+
+
 
 - **[Tests flaky (e2e surtout)]** → Playwright avec auto-wait limite déjà beaucoup. Mitigation : un test flaky qui échoue 2× est muté en `test.fixme` + issue ouverte, pas de rerun silencieux.
 - **[CI lent = frein à itération]** → 10 min par PR est acceptable sur un projet localhost. Si ça monte à 20+ min, revoir la matrice.

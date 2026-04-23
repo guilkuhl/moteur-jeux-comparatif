@@ -168,7 +168,58 @@ class PipelineStep(BaseModel):
 
 **Couverture cible V1 :** 60 % sur les routers. La couverture exhaustive et les tests e2e Playwright vivent dans le change `add-ci-e2e-tests`.
 
-## Risks / Trade-offs
+## Best Practices (checklist à appliquer pendant l'implémentation)
+
+**Architecture / code Python**
+- Typage **strict** partout : `from __future__ import annotations`, type hints sur toute signature publique, retour annoté (jamais de `Any` sans justification).
+- **SOLID** : chaque service a une seule raison de changer, dépendances injectées (pas d'import module-level pour les ressources partagées).
+- **Pas de logique dans les routers** : router = valider (Pydantic) + appeler service + sérialiser. Un router < 100 lignes.
+- **Pas d'état global caché** : `active_job`, caches, locks sont des attributs de classes de service, pas des globaux module-level (sauf singleton explicitement instancié dans `deps.py`).
+- **Exceptions typées** : `class JobAlreadyActiveError(Exception)`, `class InvalidPipelineError(Exception)` etc. ; mappées vers HTTP codes par un handler global FastAPI (pas de `raise HTTPException` en profondeur).
+- **Pas de code mort** : retrait immédiat des helpers Flask inutilisés, zéro commentaire « # TODO — ancien comportement », zéro `# removed` laissé en place.
+- **Docstrings courtes** sur les fonctions publiques, format Google ou concis une ligne. Pas de paraphrase du code.
+- **Imports triés** : `ruff --select I` (isort équivalent) obligatoire — stdlib / third-party / local.
+
+**Pydantic v2**
+- `model_config = ConfigDict(extra="forbid", strict=True, frozen=True)` sur les modèles de requête (empêche le drift silencieux).
+- `Field(..., ge=0, le=50)` pour les bornes, `Literal[...]` pour les allow-lists, `Annotated[int, Field(...)]` pour contraintes réutilisables.
+- Validators `@field_validator` pour les règles champ par champ, `@model_validator(mode="after")` pour les règles inter-champs.
+- Ne **jamais** répliquer une règle de validation : factoriser dans un `BaseModel` partagé ou un validateur commun.
+
+**FastAPI**
+- `Depends(...)` pour injecter services et config (pas d'import direct dans les routers).
+- `APIRouter(prefix="/api", tags=["convert"])` par domaine, inclus dans `main.py` via `app.include_router`.
+- `response_model=...` sur chaque route (garantit que le `dict` renvoyé est validé + documente OpenAPI).
+- `status_code=202` explicite sur `/api/convert` (pas laissé implicite à 200).
+- Middlewares : ordre explicite dans `main.py` (CORS → request_id → exception handler).
+- `HTTPException` uniquement dans les dépendances, pas dans la logique métier (qui lève ses propres exceptions, converties par le handler).
+
+**Async / concurrence**
+- Routes SSE `async def`, routes CPU-bound (convert, preview) `def` synchrones → FastAPI les exécute dans un thread pool automatiquement.
+- Thread worker job communique avec l'event loop via `loop.call_soon_threadsafe(queue.put_nowait, evt)` — jamais `queue.put` direct depuis un thread.
+- `asyncio.Queue(maxsize=1000)` pour éviter la fuite mémoire si un client abandonne sans consommer.
+- Locks : `threading.Lock` pour les structures accessibles depuis le thread worker + event loop (history, caches).
+
+**Logging / observabilité**
+- `logging` stdlib configuré dans `main.py` avec formatter incluant `request_id`, niveau configurable via env `PIXEL_LAB_LOG_LEVEL`.
+- Aucun `print` dans le code applicatif (tolérable dans CLI `scripts/process.py`).
+- Chaque exception non prévue → log `exception(...)` avec stacktrace + request_id dans la réponse `{"error":"internal","request_id":"..."}`.
+
+**Sécurité**
+- Bind `127.0.0.1` forcé, documenté dans `serve.py` ; tout override `PIXEL_LAB_BIND` doit afficher un warning au boot.
+- CORS allow-list explicite (pas de `allow_origins=["*"]`).
+- Validation path-traversal (`..`, `/`, `\`) systématique sur tout input filename.
+- Timeouts : gunicorn `--timeout 120` pour couper un worker qui bloque.
+- Uploads : `MAX_CONTENT_LENGTH` conservé + allow-list d'extensions.
+
+**Tests**
+- Une fixture `tmp_path` par test qui touche le FS (pas d'écriture dans `pixel-lab/outputs/` réel depuis les tests).
+- Pas de `sleep` arbitraire — attendre explicitement via `httpx.Response.aiter_lines()` ou `asyncio.wait_for`.
+- Mocks uniquement aux frontières externes (FS, horloge). Pas de mock des services internes — on les appelle vraiment.
+- Nommage : `test_<route>_<scenario>` pour faciliter le grep.
+- Noms de fixtures explicites (`client`, `tmp_inputs_dir`, `sample_image_small`).
+
+
 
 - **[Rupture format d'erreur de validation]** → le front existant lit `data.errors` comme `string[]`. Mitigation : la PR modifie `dashboard/index.html` dans le même commit (ou le change Vue arrive en même temps). Documenté dans le scenario de spec dédié.
 - **[SSE async ↔ thread job : fuite de queue]** → si un client abandonne sans consommer, la queue grossit. Mitigation : utiliser `asyncio.Queue(maxsize=1000)` et dropper les plus anciens si saturé, plus timeout subscribe.
