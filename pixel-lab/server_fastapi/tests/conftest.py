@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -58,7 +59,17 @@ def test_input_image() -> Iterator[str]:
         dest.unlink(missing_ok=True)
         out_dir = OUTPUTS_DIR / stem
         if out_dir.exists():
-            shutil.rmtree(out_dir)
+            # Un thread worker peut encore écrire dans out_dir après la fin du test.
+            # On attend jusqu'à 5 s que le job se termine avant de supprimer.
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                try:
+                    shutil.rmtree(out_dir)
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            else:
+                shutil.rmtree(out_dir, ignore_errors=True)
         history_store.update(lambda h: h.pop(stem, None))
         if backup is not None:
             shutil.move(str(backup), str(dest))
