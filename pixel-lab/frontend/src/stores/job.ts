@@ -13,7 +13,11 @@ export const useJobStore = defineStore('job', () => {
   const warnings = ref<string[]>([]);
   const done = ref(false);
 
-  async function start(images: string[], pipeline: PipelineStep[]): Promise<void> {
+  async function start(
+    images: string[],
+    pipeline: PipelineStep[],
+    opts?: { useGpu?: boolean },
+  ): Promise<void> {
     if (activeJobId.value) {
       throw new Error('Un job est déjà actif');
     }
@@ -24,7 +28,7 @@ export const useJobStore = defineStore('job', () => {
     runningImage.value = null;
     currentStep.value = -1;
 
-    const res = await api.startConvert({ images, pipeline });
+    const res = await api.startConvert({ images, pipeline, use_gpu: opts?.useGpu ?? false });
     activeJobId.value = res.job_id;
   }
 

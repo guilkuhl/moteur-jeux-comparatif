@@ -57,6 +57,7 @@ class ConvertRequest(BaseModel):
 
     images: list[str] = Field(min_length=1)
     pipeline: list[PipelineStep] = Field(min_length=1)
+    use_gpu: bool = False
 
     @field_validator("images")
     @classmethod
@@ -75,6 +76,7 @@ class PreviewRequest(BaseModel):
     image: str
     pipeline: list[PipelineStep] = Field(min_length=1)
     downscale: int | None = 256
+    use_gpu: bool = False
 
     @field_validator("image")
     @classmethod

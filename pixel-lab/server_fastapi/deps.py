@@ -9,6 +9,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 INPUTS_DIR = ROOT / "inputs"
 OUTPUTS_DIR = ROOT / "outputs"
 HISTORY_FILE = ROOT / "history.json"
+PRESETS_FILE = ROOT / "presets.json"
 FRONTEND_DIST = ROOT / "frontend-dist"
 
 INPUTS_TRASH = INPUTS_DIR / "_trash"
@@ -52,7 +53,8 @@ def safe_name(s: str) -> bool:
 
 __all__ = [
     "ROOT", "SCRIPTS_DIR", "INPUTS_DIR", "OUTPUTS_DIR", "HISTORY_FILE",
-    "FRONTEND_DIST", "INPUTS_TRASH", "OUTPUTS_TRASH", "ALLOWED_UPLOAD_EXTS",
-    "INPUT_EXTS", "MAX_UPLOAD_BYTES", "ALGO_MODULES", "ALGO_NAMES",
+    "PRESETS_FILE", "FRONTEND_DIST", "INPUTS_TRASH", "OUTPUTS_TRASH",
+    "ALLOWED_UPLOAD_EXTS", "INPUT_EXTS", "MAX_UPLOAD_BYTES",
+    "ALGO_MODULES", "ALGO_NAMES",
     "bgdetect", "resolve_input", "safe_name",
 ]

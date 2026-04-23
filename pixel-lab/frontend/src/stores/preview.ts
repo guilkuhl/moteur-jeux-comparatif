@@ -44,7 +44,11 @@ export const usePreviewStore = defineStore('preview', () => {
     fullResMode.value = on;
   }
 
-  async function fire(image: string, pipeline: PipelineStep[]): Promise<void> {
+  async function fire(
+    image: string,
+    pipeline: PipelineStep[],
+    opts?: { useGpu?: boolean },
+  ): Promise<void> {
     if (!liveMode.value) return;
     if (!image || pipeline.length === 0) {
       status.value = 'idle';
@@ -58,7 +62,12 @@ export const usePreviewStore = defineStore('preview', () => {
 
     try {
       const result = await api.postPreview(
-        { image, pipeline, downscale: fullResMode.value ? null : 256 },
+        {
+          image,
+          pipeline,
+          downscale: fullResMode.value ? null : 256,
+          use_gpu: opts?.useGpu ?? false,
+        },
         ctrl.signal,
       );
       if (ctrl !== currentCtrl) return;
@@ -78,11 +87,15 @@ export const usePreviewStore = defineStore('preview', () => {
     }
   }
 
-  function scheduleFire(image: string, pipeline: PipelineStep[]): void {
+  function scheduleFire(
+    image: string,
+    pipeline: PipelineStep[],
+    opts?: { useGpu?: boolean },
+  ): void {
     if (debounceTimer !== null) window.clearTimeout(debounceTimer);
     debounceTimer = window.setTimeout(() => {
       debounceTimer = null;
-      void fire(image, pipeline);
+      void fire(image, pipeline, opts);
     }, DEBOUNCE_MS);
   }
 

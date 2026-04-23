@@ -21,6 +21,7 @@ def api_preview(payload: PreviewRequest) -> Response:
         payload.image,
         [s.model_dump() for s in payload.pipeline],
         payload.downscale,
+        use_gpu=payload.use_gpu,
     )
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
     return Response(
