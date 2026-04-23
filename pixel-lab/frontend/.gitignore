@@ -4,3 +4,10 @@ dist
 coverage
 *.local
 .DS_Store
+
+# vue-tsc -b incremental build artifacts (tsconfig references avec `noEmit:false`
+# implicite sur le build step — ces .js sont régénérés à chaque build et ne
+# doivent pas être commités)
+tsconfig.tsbuildinfo
+src/**/*.js
+!src/**/*.config.js
