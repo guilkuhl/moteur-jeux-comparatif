@@ -1,8 +1,35 @@
 # pixel-art-dashboard Specification
 
 ## Purpose
-Fournir une IHM web locale (`pixel-lab/dashboard/index.html`) pour parcourir les images sources, visualiser les itérations produites dans `outputs/<image>/` et comparer visuellement les variantes, ainsi qu'un script `pixel-lab/serve.py` pour servir ce dashboard sur localhost et ouvrir le navigateur.
+Fournir une IHM web locale pour parcourir les images sources, visualiser les itérations produites dans `outputs/<image>/` et comparer visuellement les variantes. Depuis la migration `migrate-front-vue-spa`, le dashboard est une SPA Vue 3 + Vite + Pinia + TypeScript (`pixel-lab/frontend/`) buildée en statique et servie par le backend FastAPI.
 ## Requirements
+
+### Requirement: Le dashboard SHALL être une SPA Vue 3 + TypeScript buildée avec Vite
+Le dashboard MUST être implémenté comme une Single Page Application Vue 3 dans `pixel-lab/frontend/`, utilisant Composition API + `<script setup lang="ts">` exclusivement, Pinia pour le state management (stores séparés par domaine), TypeScript en mode strict (`"strict": true`, `"noUncheckedIndexedAccess": true`, `"exactOptionalPropertyTypes": true`), Vite 5+ comme bundler et dev server, ESLint + Prettier comme outillage qualité.
+
+Le build prod MUST produire un dossier statique (`pixel-lab/frontend-dist/`) monté par le backend FastAPI via `StaticFiles` sur la racine `/`, avec fallback SPA vers `index.html`. Le dashboard MUST NOT être utilisable via `file://` — l'usage requiert le back en marche (mode prod : serveur unique uvicorn ; mode dev : 2 terminaux avec Vite + proxy `/api`).
+
+Le bundle principal gzipped MUST rester ≤ 300 KB (gate CI `npm run check:size`).
+
+#### Scenario: Serveur unique en prod
+- **GIVEN** le build exécuté (`npm run build`) avec `frontend-dist/` peuplé
+- **WHEN** on lance `python pixel-lab/serve.py`
+- **THEN** le serveur SHALL répondre à `http://127.0.0.1:5500/` avec l'`index.html` du build, SHALL servir les assets `assets/*.js`/`*.css` minifiés, ET SHALL continuer à traiter les routes `/api/*` via les routers FastAPI
+
+#### Scenario: Stores Pinia typés
+- **GIVEN** le dossier `src/stores/`
+- **WHEN** on inspecte son contenu
+- **THEN** il SHALL contenir au minimum `useImagesStore`, `usePipelineStore`, `usePreviewStore`, `useJobStore`, tous en style setup `defineStore('name', () => {...})` avec types TS stricts
+
+#### Scenario: Blob URL revoke automatique
+- **GIVEN** un preview affiché avec `lastUrl` dans `usePreviewStore`
+- **WHEN** l'utilisateur bascule le toggle live OFF ou lance un nouveau preview
+- **THEN** `URL.revokeObjectURL(lastUrl)` SHALL être appelé avant de remplacer par la nouvelle URL ou par `null`
+
+#### Scenario: SSE via composable réutilisable
+- **GIVEN** le composant `ConvertPanel.vue` qui écoute un job
+- **WHEN** le composant est démonté
+- **THEN** le composable `useSSESubscription` SHALL fermer automatiquement l'`EventSource` dans `onUnmounted`, garantissant aucune fuite de connexion
 ### Requirement: Le dashboard SHALL afficher une topbar, une sidebar et une zone principale
 La page `dashboard/index.html` MUST présenter au minimum trois régions : une topbar avec titre et badge, une sidebar listant les images sources, et une zone principale dédiée à la comparaison des itérations.
 

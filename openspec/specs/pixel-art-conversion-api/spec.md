@@ -197,18 +197,52 @@ Un cache mémoire unique (`OrderedDict` ou équivalent LRU avec capacité ≥ 16
 - **WHEN** un appel `/api/preview` suivant traite la même image avec `preserve_bg=true` sur une étape (avec tolerance par défaut 8)
 - **THEN** le calcul du masque dans le traitement de l'étape SHALL être un cache hit (mesurable par timing < 2 ms pour l'étape masque)
 
-### Requirement: Le backend SHALL être un serveur Flask local lié strictement à 127.0.0.1
-Le backend MUST être implémenté avec Flask dans `pixel-lab/server/app.py`, démarré sur `127.0.0.1` (jamais `0.0.0.0`) et écouter par défaut sur le port 5500. Il importe directement les modules `pixel-lab/scripts/algorithms/*.py` via le module partagé `pixel-lab/scripts/apply_step.py` — toutes les étapes de pipeline s'exécutent in-process (plus de spawn subprocess pour `/api/convert`).
+### Requirement: Le backend SHALL être une application ASGI FastAPI liée strictement à 127.0.0.1
+Le backend MUST être implémenté avec FastAPI 0.110+ dans `pixel-lab/server_fastapi/`, démarré sur `127.0.0.1` (jamais `0.0.0.0`) et écouter par défaut sur le port 5500. L'application MUST être structurée en `main.py::create_app()` comme factory, `routers/` pour les endpoints groupés par domaine, `services/` pour la logique métier sans dépendance FastAPI, `schemas/` pour les modèles Pydantic v2.
+
+Le backend MUST exposer :
+- `GET /healthz` qui renvoie `{"status":"ok","version":"<semver>"}`
+- `GET /openapi.json` (schéma OpenAPI 3.1 auto-généré)
+- `GET /docs` (Swagger UI)
+
+Le backend MUST importer `apply_step.run_step` pour exécuter les étapes de pipeline in-process (aucun `subprocess.Popen` de `process.py` depuis les routes API).
+
+Entrée serveur : `pixel-lab/serve.py` lance `uvicorn --reload` en dev ou `gunicorn -k uvicorn.workers.UvicornWorker -w 1` en prod (`PIXEL_LAB_PROD=1`). Le nombre de workers MUST rester à `1` tant que le verrou `active_job` et les caches sont des états mémoire process.
 
 #### Scenario: Bind localhost strict
-- **GIVEN** le serveur Flask démarré
+- **GIVEN** le serveur uvicorn démarré
 - **WHEN** on inspecte la socket d'écoute
 - **THEN** elle SHALL être liée à `127.0.0.1:<port>` exclusivement, et toute requête depuis une autre machine SHALL recevoir une erreur de connexion réseau
 
-#### Scenario: Exécution in-process partagée avec le preview
-- **GIVEN** le fichier `server/app.py`
+#### Scenario: OpenAPI exposé
+- **GIVEN** le backend démarré
+- **WHEN** un client appelle `GET /openapi.json`
+- **THEN** la réponse SHALL être `200 OK` avec `Content-Type: application/json` et le corps SHALL contenir la définition OpenAPI 3.1 avec au minimum les chemins `/api/convert`, `/api/preview`, `/api/bgmask`, `/api/inputs`, `/api/algos`, `/api/jobs/{job_id}/stream`
+
+#### Scenario: Healthcheck
+- **GIVEN** le backend démarré
+- **WHEN** un client appelle `GET /healthz`
+- **THEN** la réponse SHALL être `200 OK` avec un JSON `{"status":"ok"}` (utilisé par le CI comme gate de smoke test)
+
+#### Scenario: Exécution in-process partagée
+- **GIVEN** le fichier `server_fastapi/services/pipeline_runner.py`
 - **WHEN** on lit ses imports
-- **THEN** il SHALL importer `run_step` depuis `apply_step.py` et utiliser les modules `algorithms/*.py` via ce module partagé ; il SHALL NOT lancer `subprocess.Popen` pour invoquer `scripts/process.py` depuis `/api/convert`
+- **THEN** il SHALL importer `run_step` depuis `scripts/apply_step.py` ; il SHALL NOT lancer `subprocess.Popen` pour invoquer `scripts/process.py`
+
+### Requirement: La validation des payloads SHALL être centralisée dans des schémas Pydantic v2
+Toutes les validations MUST être portées par des schémas Pydantic v2 dans `server_fastapi/schemas/`. Les règles métier (algo ∈ allow-list, method ∈ `METHODS[algo]`, bornes `PARAMS[method]`, interdiction des chemins traversants) MUST être implémentées comme `model_validator` ou `field_validator` dans ces schémas, **une seule fois**, et réutilisées par toutes les routes qui acceptent un pipeline.
+
+En cas de violation, la réponse MUST être `422 Unprocessable Entity` avec un corps JSON au format Pydantic standard `{"errors": [{"loc": [...], "msg": "...", "type": "..."}]}`.
+
+#### Scenario: Algo inconnu rejeté par le schéma
+- **GIVEN** un payload `POST /api/convert` avec `pipeline:[{algo:"rm_rf","method":"root"}]`
+- **WHEN** FastAPI valide la requête via `ConvertRequest`
+- **THEN** la réponse SHALL être `422` avec `{"errors":[{"loc":["body","pipeline",0,"algo"], ...}]}`
+
+#### Scenario: Schéma unique partagé entre /api/convert et /api/preview
+- **GIVEN** les schémas `PipelineStep` et `ConvertRequest`/`PreviewRequest`
+- **WHEN** on inspecte les routers
+- **THEN** les deux routes SHALL consommer le même modèle `PipelineStep`, et une modification de ce modèle SHALL se refléter dans les deux endpoints sans duplication
 
 ### Requirement: La route GET /api/inputs SHALL lister les images d'entrée
 Le serveur MUST exposer `GET /api/inputs` qui renvoie la liste JSON des fichiers du dossier `pixel-lab/inputs/` dont l'extension appartient à `{.png, .jpg, .jpeg, .bmp, .webp, .tga}`.
