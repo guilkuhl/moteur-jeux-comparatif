@@ -42,4 +42,29 @@ describe('usePipelineStore', () => {
     s.reset();
     expect(s.isEmpty).toBe(true);
   });
+
+  it('undo/redo restaure un état antérieur', () => {
+    const s = usePipelineStore();
+    expect(s.canUndo).toBe(false);
+    s.addStep('sharpen', 'unsharp_mask', {});
+    s.addStep('denoise', 'median', {});
+    expect(s.canUndo).toBe(true);
+    s.undo();
+    expect(s.steps).toHaveLength(1);
+    expect(s.steps[0]?.algo).toBe('sharpen');
+    expect(s.canRedo).toBe(true);
+    s.redo();
+    expect(s.steps).toHaveLength(2);
+  });
+
+  it('coalesce les updateParam consécutifs sur la même clé', () => {
+    const s = usePipelineStore();
+    s.addStep('sharpen', 'unsharp_mask', { radius: 1 });
+    const before = s.steps[0]?.params.radius;
+    s.updateParam(0, 'radius', 2);
+    s.updateParam(0, 'radius', 3);
+    s.updateParam(0, 'radius', 4);
+    s.undo();
+    expect(s.steps[0]?.params.radius).toBe(before);
+  });
 });

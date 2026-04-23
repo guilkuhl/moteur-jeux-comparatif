@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useAlgosStore } from '@/stores/algos';
 import { usePipelineStore } from '@/stores/pipeline';
 import type { Algo } from '@/types/api';
@@ -7,7 +7,27 @@ import type { Algo } from '@/types/api';
 const algos = useAlgosStore();
 const pipeline = usePipelineStore();
 
-onMounted(() => void algos.load());
+function onKeydown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null;
+  // Laisse les champs texte gérer leur propre undo natif
+  if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  const key = e.key.toLowerCase();
+  if (key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    pipeline.undo();
+  } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+    e.preventDefault();
+    pipeline.redo();
+  }
+}
+
+onMounted(() => {
+  void algos.load();
+  window.addEventListener('keydown', onKeydown);
+});
+onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 
 const algoNames = computed<Algo[]>(() =>
   algos.catalog ? (Object.keys(algos.catalog) as Algo[]) : [],
@@ -79,7 +99,24 @@ function onChangeMethod(i: number, newAlgo: Algo, newMethod: string) {
         </div>
       </div>
     </div>
-    <button @click="onAddStep" :disabled="algoNames.length === 0">+ Ajouter étape</button>
+    <div class="toolbar">
+      <button @click="onAddStep" :disabled="algoNames.length === 0">+ Ajouter étape</button>
+      <div class="spacer" />
+      <button
+        type="button"
+        :disabled="!pipeline.canUndo"
+        :title="'Annuler (Ctrl+Z)'"
+        aria-label="Annuler"
+        @click="pipeline.undo()"
+      >↶</button>
+      <button
+        type="button"
+        :disabled="!pipeline.canRedo"
+        :title="'Rétablir (Ctrl+Shift+Z)'"
+        aria-label="Rétablir"
+        @click="pipeline.redo()"
+      >↷</button>
+    </div>
   </div>
 </template>
 
@@ -93,4 +130,10 @@ function onChangeMethod(i: number, newAlgo: Algo, newMethod: string) {
 .params { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; }
 .param { display: flex; align-items: center; gap: 4px; font-size: 12px; }
 .param input[type="number"] { width: 70px; }
+.toolbar { display: flex; align-items: center; gap: 6px; }
+.toolbar .spacer { flex: 1; }
+.toolbar button[aria-label="Annuler"],
+.toolbar button[aria-label="Rétablir"] {
+  font-size: 16px; line-height: 1; padding: 4px 10px;
+}
 </style>
