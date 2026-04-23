@@ -4,6 +4,8 @@ import type {
   ConvertRequest,
   InputFile,
   JobCreatedResponse,
+  PipelineStep,
+  Preset,
   PreviewRequest,
   PreviewResult,
 } from '@/types/api';
@@ -63,6 +65,23 @@ export const api = {
       elapsedMs: n('X-Elapsed-Ms'),
       cacheHitDepth: n('X-Cache-Hit-Depth'),
     };
+  },
+
+  async listPresets(): Promise<Preset[]> {
+    return jsonFetch<Preset[]>('/api/presets');
+  },
+
+  async savePreset(name: string, pipeline: PipelineStep[]): Promise<Preset> {
+    return jsonFetch<Preset>('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, pipeline }),
+    });
+  },
+
+  async deletePreset(name: string): Promise<void> {
+    const res = await fetch(`/api/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!res.ok) throw await parseApiError(res);
   },
 
   async getBgmask(

@@ -6,6 +6,7 @@ import { usePreviewStore } from '@/stores/preview';
 import { useJobStore } from '@/stores/job';
 import { useSSESubscription } from '@/composables/useSSESubscription';
 import PipelineEditor from './PipelineEditor.vue';
+import PresetsBar from './PresetsBar.vue';
 
 const images = useImagesStore();
 const pipeline = usePipelineStore();
@@ -65,6 +66,7 @@ function toggleLive(ev: Event) {
 
     <p v-if="!images.activeImage" class="muted">Sélectionne une image dans la sidebar.</p>
 
+    <PresetsBar />
     <PipelineEditor />
 
     <footer>

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useAlgosStore } from '@/stores/algos';
 import { useImagesStore } from '@/stores/images';
 import { usePipelineStore } from '@/stores/pipeline';
+import { usePresetsStore } from '@/stores/presets';
 import { usePreviewStore } from '@/stores/preview';
 import { useThemeStore } from '@/stores/theme';
 import type { Algo } from '@/types/api';
@@ -19,6 +20,7 @@ const algos = useAlgosStore();
 const images = useImagesStore();
 const pipeline = usePipelineStore();
 const preview = usePreviewStore();
+const presets = usePresetsStore();
 const theme = useThemeStore();
 
 const open = ref(false);
@@ -90,6 +92,15 @@ const commands = computed<Command[]>(() => {
     });
   }
 
+  for (const p of presets.items) {
+    out.push({
+      id: `preset:${p.name}`,
+      title: `Charger preset : ${p.name}`,
+      group: 'Presets',
+      run: () => pipeline.replaceAll(p.pipeline),
+    });
+  }
+
   return out;
 });
 
@@ -151,6 +162,7 @@ onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown);
   // lazy-load catalog pour peupler les commandes d'ajout
   if (!algos.catalog) void algos.load();
+  if (presets.items.length === 0) void presets.refresh();
 });
 onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown));
 </script>

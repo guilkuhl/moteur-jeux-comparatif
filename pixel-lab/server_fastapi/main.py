@@ -24,6 +24,7 @@ from .routers import (
     history,
     inputs,
     outputs,
+    presets,
     preview,
     spritesheet,
 )
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(cleanup.router)
     app.include_router(autotile.router)
     app.include_router(history.router)
+    app.include_router(presets.router)
 
     # SPA Vue buildée : montée en dernier (routes `/api/*` et `/inputs/*` matchent avant).
     # En dev, le front tourne séparément via `npm run dev` sur :5173 avec proxy /api → :5500.

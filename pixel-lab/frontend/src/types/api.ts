@@ -62,3 +62,9 @@ export interface ApiErrorBody {
 export interface JobCreatedResponse {
   job_id: string;
 }
+
+export interface Preset {
+  name: string;
+  pipeline: PipelineStep[];
+  updated_at: string;
+}
