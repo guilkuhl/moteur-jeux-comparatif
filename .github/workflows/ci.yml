@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [master, 'claude/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  back:
+    name: Back (ruff + pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pixel-lab/requirements-dev.txt
+
+      - name: Install deps
+        working-directory: pixel-lab
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        working-directory: pixel-lab
+        run: ruff check .
+
+      - name: Pytest with coverage
+        working-directory: pixel-lab
+        run: pytest server_fastapi/tests/ --cov=server_fastapi --cov=scripts/apply_step.py --cov-report=xml --cov-report=term
+
+      - name: Upload coverage artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: back-coverage
+          path: pixel-lab/coverage.xml
+          retention-days: 14
+
+  front:
+    name: Front (lint + type-check + vitest + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: pixel-lab/frontend/package-lock.json
+
+      - name: Install deps
+        working-directory: pixel-lab/frontend
+        run: npm ci
+
+      - name: Type-check
+        working-directory: pixel-lab/frontend
+        run: npm run type-check
+
+      - name: Vitest
+        working-directory: pixel-lab/frontend
+        run: npm run test
+
+      - name: Build
+        working-directory: pixel-lab/frontend
+        run: npm run build
+
+      - name: Bundle size check
+        working-directory: pixel-lab/frontend
+        run: npm run check:size
+
+      - name: Upload built frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: pixel-lab/frontend/dist
+          retention-days: 14
+
+  smoke:
+    name: Smoke (back boot + frontend-dist mount)
+    needs: [back, front]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pixel-lab/requirements-dev.txt
+
+      - name: Install deps
+        working-directory: pixel-lab
+        run: pip install -r requirements-dev.txt
+
+      - name: Download built frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: pixel-lab/frontend-dist
+
+      - name: Boot uvicorn in background
+        working-directory: pixel-lab
+        run: |
+          python serve.py &
+          echo $! > /tmp/uvicorn.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5500/healthz >/dev/null 2>&1; then
+              echo "back ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "back never became ready" >&2
+          exit 1
+
+      - name: Smoke requests
+        run: |
+          curl -fsS http://127.0.0.1:5500/healthz | tee /tmp/healthz.json
+          curl -fsS http://127.0.0.1:5500/openapi.json | head -c 200 && echo
+          curl -fsS http://127.0.0.1:5500/ | head -c 200 && echo
+          curl -fsS http://127.0.0.1:5500/api/algos | head -c 200 && echo
+
+      - name: Stop uvicorn
+        if: always()
+        run: kill $(cat /tmp/uvicorn.pid) 2>/dev/null || true

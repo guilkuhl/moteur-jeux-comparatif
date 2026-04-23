@@ -4,22 +4,47 @@
 TBD - created by archiving change add-live-preview. Update Purpose after archive.
 ## Requirements
 ### Requirement: La route POST /api/preview SHALL exécuter un pipeline en mémoire et renvoyer un PNG volatile
-Le serveur MUST exposer `POST /api/preview` qui accepte un corps JSON `{image: <basename>, pipeline: [{algo, method, params}, ...], downscale: <int|null>}`, applique le pipeline sur l'image cible en mémoire via l'import direct des modules `pixel-lab/scripts/algorithms/*.py`, et renvoie une réponse synchrone `200 OK` contenant `{"png_base64": "<data>", "width": <int>, "height": <int>, "elapsed_ms": <int>}`. L'endpoint MUST NOT écrire sur disque, MUST NOT modifier `history.json`, MUST NOT créer de dossier dans `outputs/`.
+Le serveur MUST exposer `POST /api/preview` qui accepte un corps JSON `{image: <basename>, pipeline: [{algo, method, params}, ...], downscale: <int|null>}`, applique le pipeline sur l'image cible en mémoire via l'import direct des modules `pixel-lab/scripts/algorithms/*.py`. L'endpoint MUST NOT écrire sur disque, MUST NOT modifier `history.json`, MUST NOT créer de dossier dans `outputs/`.
+
+Format de réponse : voir la requirement « La route POST /api/preview SHALL retourner un PNG binaire avec métadonnées en headers HTTP » (PNG binaire + headers `X-Width`, `X-Height`, `X-Elapsed-Ms`, `X-Cache-Hit-Depth`).
 
 #### Scenario: Preview mono-étape réussi
 - **GIVEN** un payload valide `{image:"sprite.png", pipeline:[{algo:"sharpen",method:"unsharp_mask",params:{radius:1.2,percent:200}}], downscale:256}`
 - **WHEN** le client envoie `POST /api/preview`
-- **THEN** la réponse SHALL être `200 OK` avec `{"png_base64": "<non-empty>", "width": <int ≤ 256>, "height": <int ≤ 256>, "elapsed_ms": <int>}`, et aucun fichier SHALL avoir été créé dans `outputs/sprite/` ou `history.json` SHALL rester strictement identique à son état avant la requête
+- **THEN** la réponse SHALL être `200 OK` avec `Content-Type: image/png` et des headers `X-Width <= 256`, `X-Height <= 256`, `X-Elapsed-Ms`, `X-Cache-Hit-Depth`, et aucun fichier SHALL avoir été créé dans `outputs/sprite/` ou `history.json` SHALL rester strictement identique à son état avant la requête
 
 #### Scenario: Preview pipeline multi-étapes
 - **GIVEN** un payload `{image:"sprite.png", pipeline:[{algo:"denoise",method:"median",params:{size:3}},{algo:"sharpen",method:"unsharp_mask",params:{radius:1.0,percent:150}}], downscale:256}`
 - **WHEN** le client envoie la requête
-- **THEN** le serveur SHALL appliquer les deux étapes séquentiellement en mémoire, la sortie de l'étape 1 SHALL être l'entrée de l'étape 2, et la réponse SHALL contenir le PNG final encodé en base64
+- **THEN** le serveur SHALL appliquer les deux étapes séquentiellement en mémoire, la sortie de l'étape 1 SHALL être l'entrée de l'étape 2, et la réponse SHALL contenir le PNG final (binaire) dans le corps
 
 #### Scenario: Pas de persistance
 - **GIVEN** un appel `POST /api/preview` réussi
 - **WHEN** on inspecte `outputs/` et `history.json` immédiatement après
 - **THEN** aucun nouveau fichier `iter_NNN_*.png` SHALL avoir été créé, et `history.json` SHALL être byte-à-byte identique à son contenu avant l'appel
+
+### Requirement: La route POST /api/preview SHALL retourner un PNG binaire avec métadonnées en headers HTTP
+Le serveur MUST renvoyer la réponse de `POST /api/preview` en tant que PNG binaire (`Content-Type: image/png`) dans le corps de la réponse, avec les métadonnées dans des headers HTTP personnalisés : `X-Width`, `X-Height`, `X-Elapsed-Ms`, `X-Cache-Hit-Depth`. L'encodage base64 et le wrapper JSON `{"png_base64": …}` MUST être supprimés. Les réponses d'erreur (400, 404, 409, 413, etc.) MUST continuer à utiliser le format JSON `{"errors": [...]}` ou `{"error": "..."}`.
+
+#### Scenario: Réponse réussie au format binaire
+- **GIVEN** un payload valide `{image:"sprite.png", pipeline:[{algo:"sharpen",method:"unsharp_mask",params:{radius:1.0,percent:150}}], downscale:256}`
+- **WHEN** le client envoie `POST /api/preview`
+- **THEN** la réponse SHALL être `200 OK` avec `Content-Type: image/png`, le corps SHALL être un PNG valide décodable par Pillow/navigateur, ET les headers SHALL inclure `X-Width`, `X-Height`, `X-Elapsed-Ms`, `X-Cache-Hit-Depth` avec des valeurs entières
+
+#### Scenario: Header de cache hit
+- **GIVEN** un premier appel `/api/preview` avec pipeline `[A, B]` puis un second avec pipeline `[A, B, C]` (préfixe identique)
+- **WHEN** le serveur traite le second appel
+- **THEN** la réponse `200 OK` SHALL contenir `X-Cache-Hit-Depth: 2`
+
+#### Scenario: Erreur de validation reste en JSON
+- **GIVEN** un payload avec `downscale: 10` (hors bornes [64, 4096])
+- **WHEN** le client envoie `POST /api/preview`
+- **THEN** la réponse SHALL être `400 Bad Request` avec `Content-Type: application/json` et un corps `{"errors": ["downscale: 10 hors bornes [64, 4096]"]}`
+
+#### Scenario: Corps PNG directement utilisable par le navigateur
+- **GIVEN** une réponse `200 OK` du serveur
+- **WHEN** le client JS fait `const blob = await res.blob(); const url = URL.createObjectURL(blob); img.src = url;`
+- **THEN** l'image SHALL s'afficher correctement sans étape de décodage base64, ET les métadonnées SHALL être lisibles via `res.headers.get('X-Elapsed-Ms')` etc.
 
 ### Requirement: Le preview SHALL appliquer un downscale par défaut et supporter un mode plein résolution
 Le serveur MUST redimensionner l'image source à une longueur max de 256 pixels (en conservant le ratio) avant d'appliquer le pipeline, sauf si le payload contient explicitement `downscale: null`, auquel cas le pipeline SHALL être appliqué sur la taille originale. Le downscale MUST utiliser un resampling préservant la netteté pixel-art (`Image.Resampling.NEAREST` pour les images pixel-natives, ou `LANCZOS` pour les sources hautes résolutions — choix à documenter dans le code).
@@ -172,18 +197,52 @@ Un cache mémoire unique (`OrderedDict` ou équivalent LRU avec capacité ≥ 16
 - **WHEN** un appel `/api/preview` suivant traite la même image avec `preserve_bg=true` sur une étape (avec tolerance par défaut 8)
 - **THEN** le calcul du masque dans le traitement de l'étape SHALL être un cache hit (mesurable par timing < 2 ms pour l'étape masque)
 
-### Requirement: Le backend SHALL être un serveur Flask local lié strictement à 127.0.0.1
-Le backend MUST être implémenté avec Flask dans `pixel-lab/server/app.py`, démarré sur `127.0.0.1` (jamais `0.0.0.0`) et écouter par défaut sur le port 5500. Il ne doit jamais importer le code des modules `algorithms/` : il orchestre uniquement via sous-processus.
+### Requirement: Le backend SHALL être une application ASGI FastAPI liée strictement à 127.0.0.1
+Le backend MUST être implémenté avec FastAPI 0.110+ dans `pixel-lab/server_fastapi/`, démarré sur `127.0.0.1` (jamais `0.0.0.0`) et écouter par défaut sur le port 5500. L'application MUST être structurée en `main.py::create_app()` comme factory, `routers/` pour les endpoints groupés par domaine, `services/` pour la logique métier sans dépendance FastAPI, `schemas/` pour les modèles Pydantic v2.
+
+Le backend MUST exposer :
+- `GET /healthz` qui renvoie `{"status":"ok","version":"<semver>"}`
+- `GET /openapi.json` (schéma OpenAPI 3.1 auto-généré)
+- `GET /docs` (Swagger UI)
+
+Le backend MUST importer `apply_step.run_step` pour exécuter les étapes de pipeline in-process (aucun `subprocess.Popen` de `process.py` depuis les routes API).
+
+Entrée serveur : `pixel-lab/serve.py` lance `uvicorn --reload` en dev ou `gunicorn -k uvicorn.workers.UvicornWorker -w 1` en prod (`PIXEL_LAB_PROD=1`). Le nombre de workers MUST rester à `1` tant que le verrou `active_job` et les caches sont des états mémoire process.
 
 #### Scenario: Bind localhost strict
-- **GIVEN** le serveur Flask démarré
+- **GIVEN** le serveur uvicorn démarré
 - **WHEN** on inspecte la socket d'écoute
 - **THEN** elle SHALL être liée à `127.0.0.1:<port>` exclusivement, et toute requête depuis une autre machine SHALL recevoir une erreur de connexion réseau
 
-#### Scenario: Aucune dépendance au code métier
-- **GIVEN** le fichier `server/app.py`
+#### Scenario: OpenAPI exposé
+- **GIVEN** le backend démarré
+- **WHEN** un client appelle `GET /openapi.json`
+- **THEN** la réponse SHALL être `200 OK` avec `Content-Type: application/json` et le corps SHALL contenir la définition OpenAPI 3.1 avec au minimum les chemins `/api/convert`, `/api/preview`, `/api/bgmask`, `/api/inputs`, `/api/algos`, `/api/jobs/{job_id}/stream`
+
+#### Scenario: Healthcheck
+- **GIVEN** le backend démarré
+- **WHEN** un client appelle `GET /healthz`
+- **THEN** la réponse SHALL être `200 OK` avec un JSON `{"status":"ok"}` (utilisé par le CI comme gate de smoke test)
+
+#### Scenario: Exécution in-process partagée
+- **GIVEN** le fichier `server_fastapi/services/pipeline_runner.py`
 - **WHEN** on lit ses imports
-- **THEN** il SHALL n'importer aucun module de `pixel-lab/scripts/algorithms/` et n'utiliser que `subprocess`, `flask`, et la stdlib pour orchestrer
+- **THEN** il SHALL importer `run_step` depuis `scripts/apply_step.py` ; il SHALL NOT lancer `subprocess.Popen` pour invoquer `scripts/process.py`
+
+### Requirement: La validation des payloads SHALL être centralisée dans des schémas Pydantic v2
+Toutes les validations MUST être portées par des schémas Pydantic v2 dans `server_fastapi/schemas/`. Les règles métier (algo ∈ allow-list, method ∈ `METHODS[algo]`, bornes `PARAMS[method]`, interdiction des chemins traversants) MUST être implémentées comme `model_validator` ou `field_validator` dans ces schémas, **une seule fois**, et réutilisées par toutes les routes qui acceptent un pipeline.
+
+En cas de violation, la réponse MUST être `422 Unprocessable Entity` avec un corps JSON au format Pydantic standard `{"errors": [{"loc": [...], "msg": "...", "type": "..."}]}`.
+
+#### Scenario: Algo inconnu rejeté par le schéma
+- **GIVEN** un payload `POST /api/convert` avec `pipeline:[{algo:"rm_rf","method":"root"}]`
+- **WHEN** FastAPI valide la requête via `ConvertRequest`
+- **THEN** la réponse SHALL être `422` avec `{"errors":[{"loc":["body","pipeline",0,"algo"], ...}]}`
+
+#### Scenario: Schéma unique partagé entre /api/convert et /api/preview
+- **GIVEN** les schémas `PipelineStep` et `ConvertRequest`/`PreviewRequest`
+- **WHEN** on inspecte les routers
+- **THEN** les deux routes SHALL consommer le même modèle `PipelineStep`, et une modification de ce modèle SHALL se refléter dans les deux endpoints sans duplication
 
 ### Requirement: La route GET /api/inputs SHALL lister les images d'entrée
 Le serveur MUST exposer `GET /api/inputs` qui renvoie la liste JSON des fichiers du dossier `pixel-lab/inputs/` dont l'extension appartient à `{.png, .jpg, .jpeg, .bmp, .webp, .tga}`.
@@ -254,16 +313,31 @@ Le serveur MUST exposer `GET /api/jobs/<id>/stream` retournant un flux SSE (`Con
 - **WHEN** l'étape se termine
 - **THEN** un événement `{type:"step_error", image:"...", step:N, stderr:"..."}` SHALL être diffusé, le job SHALL passer à l'image suivante (sans interrompre le job global), et l'événement final `done` SHALL inclure le compteur `errors > 0`
 
-### Requirement: L'orchestration SHALL chaîner les sous-processus en passant la sortie de l'étape N à l'étape N+1
-Pour un pipeline multi-étapes, le serveur MUST appeler `python scripts/process.py <input> <algo> method=<m> [<params>...]` une fois par étape, en utilisant comme `<input>` le fichier `outputs/<image>/iter_NNN_*.png` produit par l'étape précédente.
+### Requirement: La route POST /api/convert SHALL exécuter ses pipelines in-process sans spawn de subprocess Python
+Le serveur MUST exécuter chaque étape de pipeline de `/api/convert` dans le process Flask via un appel de fonction direct (module partagé `scripts/apply_step.py`), sans passer par `subprocess.Popen(sys.executable, "scripts/process.py", …)`. Le contrat externe (payload JSON, format SSE, nommage `iter_NNN_<algo>_<method>.png`, structure `history.json`) MUST rester strictement identique au comportement antérieur. Le verrou `_active_job` garantissant un seul job actif à la fois MUST être conservé.
 
-#### Scenario: Chaînage des étapes
-- **GIVEN** un pipeline de 2 étapes sur l'image `sprite.png`
-- **WHEN** le job s'exécute
-- **THEN** l'étape 1 SHALL être appelée avec `inputs/sprite.png` et produire `outputs/sprite/iter_NNN_<algo1>_<m1>.png`, puis l'étape 2 SHALL être appelée avec ce fichier comme entrée et produire `outputs/sprite/iter_NNN+1_<algo2>_<m2>.png`
+#### Scenario: Pipeline multi-étapes exécuté en-process
+- **GIVEN** un payload valide `{images:["sprite.png"], pipeline:[{algo:"pixelsnap",method:"block",params:{size:2}},{algo:"denoise",method:"median",params:{size:3}},{algo:"sharpen",method:"unsharp_mask",params:{radius:1.2,percent:200}}]}`
+- **WHEN** le client envoie `POST /api/convert`
+- **THEN** le serveur SHALL répondre `202 Accepted` avec un `job_id`, puis pour chaque étape SHALL appeler `run_step` en-process (aucun `subprocess.Popen` pour invoquer `process.py` n'est déclenché par `/api/convert`), ET trois fichiers `iter_NNN_pixelsnap_block.png`, `iter_NNN_denoise_median.png`, `iter_NNN_sharpen_unsharp_mask.png` SHALL être écrits dans `outputs/sprite/` avec la même convention de nommage qu'avant le refactor
+
+#### Scenario: Événements SSE inchangés
+- **GIVEN** un job `/api/convert` en cours
+- **WHEN** un client écoute `/api/jobs/<job_id>/stream`
+- **THEN** les événements reçus SHALL conserver exactement les types et champs historiques : `step_start {image, step, algo, method}`, `step_done {image, step, output}`, `step_error {image, step, stderr}` (le champ `stderr` contient désormais le message d'exception Python tronqué à 500 chars au lieu de la stderr d'un subprocess, mais le **nom du champ** reste `stderr` pour compatibilité client), `image_done {image}`, `done`, `warning {message}`
+
+#### Scenario: Parité bit-à-bit avec l'ancien chemin
+- **GIVEN** une image de référence `sprite.png` et un pipeline figé `[{algo:"sharpen",method:"unsharp_mask",params:{radius:1.2,percent:200}}]`
+- **WHEN** le même payload est soumis à `/api/convert` avant et après le refactor
+- **THEN** le fichier `iter_001_sharpen_unsharp_mask.png` produit SHALL être identique bit-à-bit (`cmp` retourne 0), et l'entrée correspondante dans `history.json` SHALL contenir les mêmes champs `{algo, method, params, output}` (timestamps exclus)
+
+#### Scenario: Gestion d'erreur par étape
+- **GIVEN** un pipeline dont la 2ᵉ étape déclenche une exception dans l'algorithme (ex. param hors bornes non attrapé par la validation statique)
+- **WHEN** `run_step` remonte l'exception
+- **THEN** le serveur SHALL pousser un événement SSE `step_error {image, step: 1, stderr: "<message tronqué 500 chars>"}`, SHALL ne pas écrire le `iter_NNN_*.png` de cette étape, ET SHALL continuer sur la 3ᵉ étape (comportement `continue` actuel de `_run_job`)
 
 #### Scenario: Warning scale2x au milieu
 - **GIVEN** un pipeline `[denoise, scale2x, sharpen]` (scale2x change la résolution)
 - **WHEN** le job s'exécute
-- **THEN** un événement SSE `{type:"warning", message:"scale2x au milieu d'un pipeline, les étapes suivantes opèrent sur une image redimensionnée"}` SHALL être diffusé avant le `step_start` de l'étape `scale2x`, mais le pipeline SHALL continuer normalement
+- **THEN** un événement SSE `{type:"warning", message:"scale2x au milieu d'un pipeline, …"}` SHALL être diffusé avant le `step_start` de l'étape `scale2x`, mais le pipeline SHALL continuer normalement
 

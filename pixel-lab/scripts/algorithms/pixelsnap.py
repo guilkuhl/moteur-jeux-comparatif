@@ -32,7 +32,6 @@ from PIL import Image
 
 from . import bgdetect
 
-
 # ─── Détection automatique de la taille de bloc ───────────────────────────────
 
 def _gray(arr: np.ndarray) -> np.ndarray:

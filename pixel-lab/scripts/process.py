@@ -22,22 +22,25 @@ Algos disponibles :
 Après chaque run, ouvrir dashboard/index.html pour comparer les itérations.
 """
 
-import sys
-import os
-import json
 import argparse
+import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
 from PIL import Image
 
 # Ajouter le dossier scripts au path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(Path(__file__).parent))
 
-from algorithms import sharpen as sharpen_mod
-from algorithms import scale2x as scale2x_mod
+import contextlib
+
 from algorithms import denoise as denoise_mod
 from algorithms import pixelsnap as pixelsnap_mod
+from algorithms import scale2x as scale2x_mod
+from algorithms import sharpen as sharpen_mod
+from apply_step import run_step as _run_step_shared
 
 HISTORY_FILE = ROOT / "history.json"
 OUTPUTS_DIR  = ROOT / "outputs"
@@ -55,7 +58,7 @@ ALGO_MAP = {
 
 def load_history() -> dict:
     if HISTORY_FILE.exists():
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
@@ -82,10 +85,8 @@ def parse_params(raw: list[str]) -> dict:
             try:
                 v = int(v)
             except ValueError:
-                try:
+                with contextlib.suppress(ValueError):
                     v = float(v)
-                except ValueError:
-                    pass
             params[k] = v
     return params
 
@@ -164,7 +165,14 @@ def main():
     if 'name' in params:
         image_name = str(params.pop('name'))
     history = load_history()
-    iter_idx = next_iter_index(image_name, history)
+
+    # ─ Copier l'image source dans outputs si c'est le 1er run (avant run_step
+    #   pour que le dossier cible existe avant toute écriture)
+    source_copy = OUTPUTS_DIR / image_name / "source.png"
+    source_copy.parent.mkdir(parents=True, exist_ok=True)
+    if not source_copy.exists():
+        img.save(source_copy)
+        print(f"[saved] Source copiée dans outputs/{image_name}/source.png")
 
     # ─ Pipeline ou algo simple
     if args.algo == "pipeline":
@@ -175,20 +183,24 @@ def main():
         result, steps_log = run_pipeline(img.copy(), steps_str)
         method_label = "+".join(s["method"] for s in steps_log)
         algo_label = "pipeline"
+        iter_idx = next_iter_index(image_name, history)
+        out_path = save_result(result, image_name, iter_idx, algo_label, method_label)
+        params_entry = {k: v for k, v in parse_params(args.params).items() if k != "method"}
     else:
         method_name = params.get("method", list(ALGO_MAP.get(args.algo, {}).keys() or ["?"])[0])
-        result = apply_algo(img.copy(), args.algo, params.copy())
-        algo_label = args.algo
-        method_label = method_name
-
-    # ─ Sauvegarder l'image résultat
-    out_path = save_result(result, image_name, iter_idx, algo_label, method_label)
-
-    # ─ Copier l'image source dans outputs si c'est le 1er run
-    source_copy = OUTPUTS_DIR / image_name / "source.png"
-    if not source_copy.exists():
-        img.save(source_copy)
-        print(f"[saved] Source copiée dans outputs/{image_name}/source.png")
+        # Les casts (int/float/bool) et l'écriture `iter_NNN_*.png` sont centralisés
+        # dans apply_step.run_step — source de vérité partagée avec le serveur.
+        step_params = {k: v for k, v in params.items() if k != "method"}
+        print(f"[process] {args.algo}/{method_name} avec params={step_params}")
+        out_path, entry = _run_step_shared(
+            src_path, args.algo, method_name, step_params,
+            OUTPUTS_DIR / image_name,
+        )
+        print(f"[saved] {out_path.relative_to(ROOT)}")
+        iter_idx = entry["index"]
+        algo_label = entry["algo"]
+        method_label = entry["method"]
+        params_entry = entry["params"]
 
     # ─ Mettre à jour l'historique
     run_entry = {
@@ -196,7 +208,7 @@ def main():
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "algo": algo_label,
         "method": method_label,
-        "params": {k: v for k, v in parse_params(args.params).items() if k != "method"},
+        "params": params_entry,
         "output": str(out_path.relative_to(ROOT)),
         "source": str(src_path.relative_to(ROOT)) if src_path.is_relative_to(ROOT) else str(src_path),
     }
@@ -206,7 +218,7 @@ def main():
     history[image_name]["runs"].append(run_entry)
     save_history(history)
     print(f"[history] Itération #{iter_idx} enregistrée dans history.json")
-    print(f"\n✓ Ouvre dashboard/index.html pour comparer les résultats.")
+    print("\n✓ Ouvre dashboard/index.html pour comparer les résultats.")
 
 
 if __name__ == "__main__":

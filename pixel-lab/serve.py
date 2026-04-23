@@ -1,50 +1,87 @@
 """
-serve.py — Lance le dashboard Pixel Lab dans le navigateur
-==========================================================
-Démarre un serveur HTTP local et ouvre automatiquement le dashboard.
+serve.py — Entrée unique Pixel Lab (FastAPI + dashboard)
+=========================================================
+
+Modes :
+  - dev  (défaut)              : `uvicorn --reload`
+  - prod (PIXEL_LAB_PROD=1)    : `gunicorn -k uvicorn.workers.UvicornWorker -w 1`
 
 Usage :
-    py serve.py
-    py serve.py --port 8080
+    python pixel-lab/serve.py
+    PIXEL_LAB_PROD=1 python pixel-lab/serve.py
+
+Installation prod :
+    pip install -r pixel-lab/requirements-prod.txt
+
+⚠️  Garder `-w 1` : le verrou `_active_job` et les caches preview/bgmask de
+    `server_fastapi/` sont des globaux mémoire du process. Monter à `-w > 1`
+    sans porter ces états vers un mécanisme inter-process (fichier lock, Redis)
+    casserait la garantie « un seul job actif à la fois ».
 """
 
-import http.server
-import socketserver
-import webbrowser
-import argparse
+from __future__ import annotations
+
+import contextlib
 import os
+import sys
+import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).parent
 
-def main():
-    parser = argparse.ArgumentParser(description="Pixel Lab — serveur dashboard")
-    parser.add_argument("--port", type=int, default=5500, help="Port (défaut: 5500)")
-    parser.add_argument("--no-browser", action="store_true", help="Ne pas ouvrir le navigateur")
-    args = parser.parse_args()
+# Permet `from server_fastapi.main import app` peu importe le cwd au moment du lancement.
+sys.path.insert(0, str(ROOT))
 
-    os.chdir(ROOT)
 
-    url = f"http://localhost:{args.port}/dashboard/index.html"
+def _run_gunicorn(bind: str = "127.0.0.1:5500") -> None:
+    """Prod : gunicorn + UvicornWorker. Fallback uvicorn dev si gunicorn absent."""
+    try:
+        from gunicorn.app.wsgiapp import run  # type: ignore
+    except ImportError:
+        print("[serve] gunicorn introuvable — fallback uvicorn dev.")
+        print("        pip install -r pixel-lab/requirements-prod.txt")
+        _run_uvicorn(bind, reload=False)
+        return
 
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def log_message(self, format, *a):
-            pass  # Silencieux
+    sys.argv = [
+        "gunicorn",
+        "-w", "1",
+        "-k", "uvicorn.workers.UvicornWorker",
+        "-b", bind,
+        "--timeout", "120",
+        "server_fastapi.main:app",
+    ]
+    print(f"[serve] gunicorn → http://{bind}/")
+    run()
 
-    print(f"\n  ⚡ Pixel Lab Dashboard")
-    print(f"  ─────────────────────────────")
-    print(f"  URL     : {url}")
-    print(f"  Dossier : {ROOT}")
-    print(f"\n  Ctrl+C pour arrêter\n")
 
-    if not args.no_browser:
-        webbrowser.open(url)
+def _run_uvicorn(bind: str = "127.0.0.1:5500", *, reload: bool = True) -> None:
+    """Dev : uvicorn avec reload automatique sur modification de fichier .py."""
+    import uvicorn
 
-    with socketserver.TCPServer(("", args.port), Handler) as httpd:
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\n  Serveur arrêté.\n")
+    host, _, port_s = bind.partition(":")
+    port = int(port_s or "5500")
+    url = f"http://{host}:{port}/"
+    print(f"[serve] uvicorn {'(reload)' if reload else ''} → {url}")
+    if not reload and os.environ.get("PIXEL_LAB_NO_BROWSER") != "1":
+        with contextlib.suppress(Exception):
+            webbrowser.open(url)
+    uvicorn.run(
+        "server_fastapi.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level=os.environ.get("PIXEL_LAB_LOG_LEVEL", "info").lower(),
+    )
+
+
+def main() -> None:
+    bind = os.environ.get("PIXEL_LAB_BIND", "127.0.0.1:5500")
+    if os.environ.get("PIXEL_LAB_PROD", "0") == "1":
+        _run_gunicorn(bind)
+    else:
+        _run_uvicorn(bind, reload=True)
+
 
 if __name__ == "__main__":
     main()
